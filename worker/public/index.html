@@ -49,9 +49,11 @@ li.deck.active { border-color:var(--accent); }
 .player a:hover { text-decoration:underline; }
 .tourney { color:var(--dim); flex:1; min-width:150px; }
 .date { color:var(--dim); font-variant-numeric:tabular-nums; }
-.badge { margin-left:auto; background:var(--accent); color:#fff; font-weight:700;
-  border-radius:20px; min-width:22px; text-align:center; padding:1px 7px; font-size:12px; }
-.badge.zero { background:#2b333c; color:var(--dim); }
+.badge { margin-left:auto; background:#1c2229; border:1px solid var(--line);
+  color:var(--dim); font-weight:700; border-radius:20px; text-align:center;
+  padding:1px 9px; font-size:12px; font-variant-numeric:tabular-nums; }
+.badge b { font-weight:700; }
+.badge.zero { background:#2b333c; color:var(--dim); border-color:transparent; }
 .chips { margin-top:7px; display:flex; flex-wrap:wrap; gap:5px; }
 .chip { font-size:12px; border-radius:5px; padding:2px 7px; border:1px solid; }
 .chip em { font-style:normal; opacity:.7; }
@@ -266,9 +268,10 @@ function balanceInRange(addArr, remArr) {
     for (let i = arr.length - 1; i >= 0; i--)
       if (arr[i][4] && !keep.has(arr[i])) arr.splice(i, 1);
 }
-const notable = (a) => a.filter((x) => !x[4]).length;  // in-range moves don't count
-const deviationCount = (d) =>
-  notable(d.addMain) + notable(d.remMain) + notable(d.addSide) + notable(d.remSide);
+// Per-zone diff = cards swapped in = sum of added copies (equals removed for a
+// balanced deck, so each swap counts once).
+const addSum = (arr) => arr.reduce((s, x) => s + x[1], 0);
+const deviationCount = (d) => addSum(d.addMain) + addSum(d.addSide);
 
 // ------- rendering ----------------------------------------------------------
 const esc = (s) => String(s).replace(/[&<>"']/g,
@@ -410,7 +413,9 @@ function render() {
   let shown = 0;
   for (const deck of DATA.decks) {
     const d = hasStock ? diff(deck, ignoreCounts) : null;
-    const n = d ? deviationCount(d) : 0;
+    const md = d ? addSum(d.addMain) : 0;
+    const sb = d ? addSum(d.addSide) : 0;
+    const n = md + sb;
     if (hideStock && hasStock && n === 0) continue;
     shown++;
 
@@ -420,9 +425,11 @@ function render() {
     if (!d) diffHtml = '<div class="chips"><span class="chip none">no stock list for this archetype</span></div>';
     else if (n === 0) diffHtml = '<div class="chips"><span class="chip none">stock list</span></div>';
     else diffHtml = diffCols(d);
-    const badgeHtml = hasStock
-      ? `<span class="badge ${n === 0 ? "zero" : ""}">${n}</span>`
-      : '<span class="badge zero">–</span>';
+    const badgeHtml = !hasStock
+      ? '<span class="badge zero">–</span>'
+      : n === 0
+        ? '<span class="badge zero">0/0</span>'
+        : `<span class="badge"><b style="color:var(--hot)">${md}</b>/<b style="color:var(--misssb)">${sb}</b></span>`;
     li.innerHTML =
       `<div class="row">
         <span class="place">${esc(deck.place)}</span>
