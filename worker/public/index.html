@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Izzet Prowess — unusual card scan</title>
+<style>
+:root {
+  --bg:#0f1216; --card:#171c22; --line:#252c34; --ink:#e6e9ee; --dim:#8b95a1;
+  --hot:#ffb454; --main:#7ee081; --side:#6cc4ff; --count:#c9a3ff; --accent:#ff6b6b;
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink);
+  font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+a { color:inherit; }
+header { padding:18px 24px; border-bottom:1px solid var(--line); }
+header h1 { margin:0 0 4px; font-size:18px; }
+header .sub { color:var(--dim); font-size:12px; }
+header .sub a { color:var(--side); }
+.stockbar { padding:10px 24px; border-bottom:1px solid var(--line);
+  color:var(--dim); font-size:12px; display:flex; flex-wrap:wrap; gap:6px;
+  align-items:center; }
+.stockbar .stk { background:#1c2229; border:1px solid var(--line);
+  border-radius:4px; padding:1px 6px; color:var(--ink); }
+.controls { padding:10px 24px; border-bottom:1px solid var(--line);
+  display:flex; gap:14px; align-items:center; flex-wrap:wrap; font-size:12px;
+  color:var(--dim); }
+.controls label { display:flex; gap:5px; align-items:center; cursor:pointer; }
+.controls button { background:#1c2229; color:var(--ink); border:1px solid var(--line);
+  border-radius:6px; padding:4px 12px; cursor:pointer; font:inherit; }
+.controls button:hover { border-color:#3a4552; }
+.controls button:disabled { opacity:.5; cursor:default; }
+.layout { display:flex; align-items:flex-start; }
+ul.decks { list-style:none; margin:0; padding:14px 24px; flex:1; min-width:0; }
+li.deck { background:var(--card); border:1px solid var(--line); border-radius:8px;
+  padding:10px 12px; margin-bottom:8px; cursor:default; transition:border-color .1s; }
+li.deck:hover { border-color:#3a4552; }
+li.deck.active { border-color:var(--accent); }
+.row { display:flex; gap:12px; align-items:baseline; flex-wrap:wrap; }
+.place { font-weight:700; min-width:44px; color:var(--dim); }
+.player { font-weight:600; min-width:150px; }
+.player a { text-decoration:none; }
+.player a:hover { text-decoration:underline; }
+.tourney { color:var(--dim); flex:1; min-width:150px; }
+.date { color:var(--dim); font-variant-numeric:tabular-nums; }
+.badge { margin-left:auto; background:var(--accent); color:#fff; font-weight:700;
+  border-radius:20px; min-width:22px; text-align:center; padding:1px 7px; font-size:12px; }
+.badge.zero { background:#2b333c; color:var(--dim); }
+.chips { margin-top:7px; display:flex; flex-wrap:wrap; gap:5px; }
+.chip { font-size:12px; border-radius:5px; padding:2px 7px; border:1px solid; }
+.chip em { font-style:normal; opacity:.7; }
+.chip.main { color:var(--hot); border-color:#5a4626; background:#241d10; }
+.chip.count { color:var(--count); border-color:#42355c; background:#1e1826; }
+.chip.side { color:var(--side); border-color:#2a4a63; background:#111f2a; }
+.chip.none { color:var(--dim); border-color:var(--line); }
+.missing { margin-top:6px; font-size:11.5px; color:#6f7883; }
+aside { position:sticky; top:0; width:300px; flex:none; height:100vh;
+  border-left:1px solid var(--line); padding:16px; overflow:auto; }
+aside .hint { color:var(--dim); font-size:12px; }
+aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
+  text-transform:uppercase; letter-spacing:.05em; }
+.secttl { margin:12px 0 4px; font-weight:700; color:var(--side); font-size:12px;
+  text-transform:uppercase; letter-spacing:.04em; }
+.cardline { display:flex; gap:8px; padding:1px 0; }
+.cardline .qty { color:var(--dim); min-width:18px; text-align:right;
+  font-variant-numeric:tabular-nums; }
+.cardline.hot .cname { color:var(--hot); font-weight:700; }
+.cardline.hot .qty { color:var(--hot); }
+#status { padding:40px 24px; color:var(--dim); }
+@media (max-width:820px) { aside { display:none; } }
+</style></head>
+<body>
+<header>
+  <h1>Izzet Prowess — unusual card scan</h1>
+  <div class="sub"><span id="meta">loading…</span> ·
+    hover a deck for the full list · fetchlands bucketed ·
+    <span style="color:var(--hot)">maindeck new</span> /
+    <span style="color:var(--count)">count off</span> /
+    <span style="color:var(--side)">sideboard new</span></div>
+</header>
+<div class="stockbar" id="stockbar"></div>
+<div class="controls">
+  <label><input type="checkbox" id="hideStock"> hide stock-identical lists</label>
+  <label><input type="checkbox" id="ignoreCounts"> ignore maindeck count deltas</label>
+  <button id="refresh">↻ refresh</button>
+  <span id="freshness"></span>
+</div>
+<div class="layout">
+  <ul class="decks" id="decks"></ul>
+  <aside id="panel"><h2>Decklist</h2><div id="panelbody">
+    <div class="hint">Hover a deck on the left to preview its full list here.</div>
+  </div></aside>
+</div>
+<div id="status" style="display:none"></div>
+
+<script>
+// ------- config -------------------------------------------------------------
+// Same-origin: the page and the /decks API are served by one Worker.
+const WORKER = "/decks";
+const ARCHETYPE = "modern-izzet-prowess";
+
+// ------- stock list ---------------------------------------------------------
+const STOCK_MAIN = {
+  "Thundering Falls":1, "Slickshot Show-Off":4, "Violent Urge":2,
+  "Cori-Steel Cutter":4, "Mishra's Bauble":4, "Arid Mesa":4, "Lightning Bolt":4,
+  "Preordain":4, "Mutagenic Growth":4, "Steam Vents":3, "Monastery Swiftspear":4,
+  "Scalding Tarn":4, "Wooded Foothills":2, "Lava Dart":4, "Fiery Islet":2,
+  "Mountain":2, "Expressive Iteration":4, "Dragon's Rage Channeler":4,
+};
+const STOCK_SIDE = new Set([
+  "Meltdown", "Consign to Memory", "Spell Snare", "Unholy Heat",
+  "Spell Pierce", "Assault Strobe", "Murktide Regent",
+]);
+const FETCHLANDS = new Set([
+  "Arid Mesa","Scalding Tarn","Wooded Foothills","Bloodstained Mire",
+  "Flooded Strand","Polluted Delta","Marsh Flats","Misty Rainforest",
+  "Verdant Catacombs","Windswept Heath","Prismatic Vista","Fabled Passage",
+]);
+const FETCH_BUCKET = "Fetchland";
+
+// ------- logic --------------------------------------------------------------
+function bucket(counts) {
+  const out = {};
+  for (const [name, n] of Object.entries(counts)) {
+    const key = FETCHLANDS.has(name) ? FETCH_BUCKET : name;
+    out[key] = (out[key] || 0) + n;
+  }
+  return out;
+}
+const STOCK_MAIN_B = bucket(STOCK_MAIN);
+
+function diff(deck, ignoreCounts) {
+  const main = bucket(deck.main), side = deck.side;
+  const newMain = [], countMain = [], missingMain = [];
+  for (const name of Object.keys(main).sort()) {
+    const n = main[name];
+    if (!(name in STOCK_MAIN_B)) newMain.push([name, n]);
+    else if (n !== STOCK_MAIN_B[name] && !ignoreCounts)
+      countMain.push([name, n, STOCK_MAIN_B[name]]);
+  }
+  for (const name of Object.keys(STOCK_MAIN_B).sort())
+    if (!(name in main)) missingMain.push([name, STOCK_MAIN_B[name]]);
+  const newSide = Object.keys(side).filter((n) => !STOCK_SIDE.has(n)).sort()
+    .map((n) => [n, side[n]]);
+  const missingSide = [...STOCK_SIDE].filter((n) => !(n in side)).sort();
+  const unusual = new Set([
+    ...newMain.map((x) => x[0]),
+    ...countMain.map((x) => x[0]),
+    ...newSide.map((x) => x[0]),
+  ]);
+  return { newMain, countMain, missingMain, newSide, missingSide, unusual };
+}
+
+// ------- rendering ----------------------------------------------------------
+const esc = (s) => String(s).replace(/[&<>"']/g,
+  (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+
+function chips(d) {
+  const out = [];
+  for (const [name, n] of d.newMain)
+    out.push(`<span class="chip main" title="not in stock maindeck">${n} ${esc(name)}</span>`);
+  for (const [name, n, sn] of d.countMain)
+    out.push(`<span class="chip count" title="stock runs ${sn}">${n} ${esc(name)} <em>(stock ${sn})</em></span>`);
+  for (const [name, n] of d.newSide)
+    out.push(`<span class="chip side" title="not in stock sideboard">SB ${n} ${esc(name)}</span>`);
+  return out.length ? out.join("") : '<span class="chip none">stock list</span>';
+}
+
+function panelHtml(deck, unusual) {
+  const section = (title, counts) => {
+    const rows = Object.keys(counts).sort().map((name) => {
+      const hot = unusual.has(name) ? " hot" : "";
+      return `<div class="cardline${hot}"><span class="qty">${counts[name]}</span>` +
+        `<span class="cname">${esc(name)}</span></div>`;
+    }).join("");
+    const total = Object.values(counts).reduce((a, b) => a + b, 0);
+    return `<div class="secttl">${title} (${total})</div>${rows}`;
+  };
+  return section("Maindeck", deck.main) + section("Sideboard", deck.side);
+}
+
+// ------- app ----------------------------------------------------------------
+const el = (id) => document.getElementById(id);
+const body = el("panelbody");
+let DATA = null, pinned = null;
+
+function renderStockbar() {
+  const md = Object.keys(STOCK_MAIN_B).sort()
+    .map((n) => `<span class="stk">${STOCK_MAIN_B[n]} ${esc(n)}</span>`).join("");
+  const sb = [...STOCK_SIDE].sort().map(esc).join(", ");
+  el("stockbar").innerHTML =
+    `<strong style="color:var(--ink)">Stock&nbsp;MD:</strong> ${md}` +
+    `<span>&nbsp;·&nbsp;<strong style="color:var(--ink)">SB:</strong> ${sb}</span>`;
+}
+
+function render() {
+  if (!DATA) return;
+  const hideStock = el("hideStock").checked;
+  const ignoreCounts = el("ignoreCounts").checked;
+  const list = el("decks");
+  list.innerHTML = "";
+  let shown = 0;
+  for (const deck of DATA.decks) {
+    const d = diff(deck, ignoreCounts);
+    const nUnusual = d.newMain.length + d.countMain.length + d.newSide.length;
+    if (hideStock && nUnusual === 0) continue;
+    shown++;
+
+    const li = document.createElement("li");
+    li.className = "deck";
+    let missing = "";
+    if (d.missingMain.length || d.missingSide.length) {
+      const bits = [];
+      if (d.missingMain.length)
+        bits.push("MD: " + d.missingMain.map(([n, c]) => `${c}× ${esc(n)}`).join(", "));
+      if (d.missingSide.length)
+        bits.push("SB: " + d.missingSide.map(esc).join(", "));
+      missing = `<div class="missing">cut from stock — ${bits.join(" · ")}</div>`;
+    }
+    li.innerHTML =
+      `<div class="row">
+        <span class="place">${esc(deck.place)}</span>
+        <span class="player"><a href="${esc(deck.url)}" target="_blank" rel="noopener">${esc(deck.player)}</a></span>
+        <span class="tourney">${esc(deck.tourney)}</span>
+        <span class="date">${esc(deck.date)}</span>
+        <span class="badge ${nUnusual === 0 ? "zero" : ""}">${nUnusual}</span>
+      </div>
+      <div class="chips">${chips(d)}</div>${missing}`;
+    li._html = panelHtml(deck, d.unusual);
+    li.addEventListener("mouseenter", () => { if (!pinned) showPanel(li); });
+    li.addEventListener("click", () => { pinned = pinned === li ? null : li; showPanel(li); });
+    list.appendChild(li);
+  }
+  el("meta").textContent = `${shown} of ${DATA.count} decklists`;
+}
+
+function showPanel(li) {
+  body.innerHTML = li._html;
+  document.querySelectorAll("li.deck.active").forEach((e) => e.classList.remove("active"));
+  li.classList.add("active");
+}
+
+async function load(refresh) {
+  el("status").style.display = "block";
+  el("status").textContent = refresh ? "refreshing from mtggoldfish…" : "loading decks…";
+  el("refresh").disabled = true;
+  try {
+    const u = `${WORKER}?archetype=${encodeURIComponent(ARCHETYPE)}${refresh ? "&refresh=1" : ""}`;
+    const r = await fetch(u);
+    if (!r.ok) throw new Error(`worker HTTP ${r.status}`);
+    DATA = await r.json();
+    el("status").style.display = "none";
+    const when = new Date(DATA.generated);
+    el("freshness").textContent = "data as of " + when.toLocaleString();
+    render();
+  } catch (err) {
+    el("status").textContent = "Failed to load: " + err.message +
+      ". The Worker may be cold or rate-limited — try refresh.";
+  } finally {
+    el("refresh").disabled = false;
+  }
+}
+
+renderStockbar();
+el("hideStock").addEventListener("change", render);
+el("ignoreCounts").addEventListener("change", render);
+el("refresh").addEventListener("click", () => load(true));
+load(false);
+</script>
+</body></html>

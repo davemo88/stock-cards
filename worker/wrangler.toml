@@ -1,0 +1,13 @@
+name = "prowess-proxy"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Cached MTGGoldfish scraper: fetches an archetype page + its decklists,
+# returns parsed JSON with CORS so a static GitHub Pages site can consume it.
+[observability]
+enabled = true
+
+# Serve the static page from ./public. Requests that match a file (e.g. "/")
+# return the asset; everything else (e.g. "/decks") falls through to worker.js.
+[assets]
+directory = "./public"
