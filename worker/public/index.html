@@ -1,11 +1,12 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Izzet Prowess — unusual card scan</title>
+<title>MTG archetype — unusual card scan</title>
 <style>
 :root {
   --bg:#0f1216; --card:#171c22; --line:#252c34; --ink:#e6e9ee; --dim:#8b95a1;
-  --hot:#ffb454; --main:#7ee081; --side:#6cc4ff; --count:#c9a3ff; --accent:#ff6b6b;
+  --hot:#ffb454; --side:#6cc4ff; --count:#c9a3ff; --accent:#ff6b6b;
+  --missmd:#f2777a; --misssb:#58b3a6;
 }
 * { box-sizing:border-box; }
 body { margin:0; background:var(--bg); color:var(--ink);
@@ -20,13 +21,15 @@ header .sub a { color:var(--side); }
   align-items:center; }
 .stockbar .stk { background:#1c2229; border:1px solid var(--line);
   border-radius:4px; padding:1px 6px; color:var(--ink); }
+.stockbar code { background:#1c2229; padding:1px 5px; border-radius:4px; }
 .controls { padding:10px 24px; border-bottom:1px solid var(--line);
   display:flex; gap:14px; align-items:center; flex-wrap:wrap; font-size:12px;
   color:var(--dim); }
 .controls label { display:flex; gap:5px; align-items:center; cursor:pointer; }
-.controls button { background:#1c2229; color:var(--ink); border:1px solid var(--line);
-  border-radius:6px; padding:4px 12px; cursor:pointer; font:inherit; }
-.controls button:hover { border-color:#3a4552; }
+.controls select, .controls button { background:#1c2229; color:var(--ink);
+  border:1px solid var(--line); border-radius:6px; padding:4px 10px; cursor:pointer;
+  font:inherit; }
+.controls select:hover, .controls button:hover { border-color:#3a4552; }
 .controls button:disabled { opacity:.5; cursor:default; }
 .layout { display:flex; align-items:flex-start; }
 ul.decks { list-style:none; margin:0; padding:14px 24px; flex:1; min-width:0; }
@@ -50,8 +53,11 @@ li.deck.active { border-color:var(--accent); }
 .chip.main { color:var(--hot); border-color:#5a4626; background:#241d10; }
 .chip.count { color:var(--count); border-color:#42355c; background:#1e1826; }
 .chip.side { color:var(--side); border-color:#2a4a63; background:#111f2a; }
+.chip.missmd { color:var(--missmd); border-color:#5c2b30; background:#241416;
+  text-decoration:line-through; }
+.chip.misssb { color:var(--misssb); border-color:#274b46; background:#0f201d;
+  text-decoration:line-through; }
 .chip.none { color:var(--dim); border-color:var(--line); }
-.missing { margin-top:6px; font-size:11.5px; color:#6f7883; }
 aside { position:sticky; top:0; width:300px; flex:none; height:100vh;
   border-left:1px solid var(--line); padding:16px; overflow:auto; }
 aside .hint { color:var(--dim); font-size:12px; }
@@ -69,17 +75,20 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
 </style></head>
 <body>
 <header>
-  <h1>Izzet Prowess — unusual card scan</h1>
+  <h1 id="title">Izzet Prowess — unusual card scan</h1>
   <div class="sub"><span id="meta">loading…</span> ·
     hover a deck for the full list · fetchlands bucketed ·
-    <span style="color:var(--hot)">maindeck new</span> /
+    <span style="color:var(--hot)">md new</span> /
     <span style="color:var(--count)">count off</span> /
-    <span style="color:var(--side)">sideboard new</span></div>
+    <span style="color:var(--side)">sb new</span> /
+    <span style="color:var(--missmd)">md missing</span> /
+    <span style="color:var(--misssb)">sb missing</span></div>
 </header>
 <div class="stockbar" id="stockbar"></div>
 <div class="controls">
+  <label>archetype <select id="archetype"></select></label>
   <label><input type="checkbox" id="hideStock"> hide stock-identical lists</label>
-  <label><input type="checkbox" id="ignoreCounts"> ignore maindeck count deltas</label>
+  <label><input type="checkbox" id="ignoreCounts"> ignore count deltas</label>
   <button id="refresh">↻ refresh</button>
   <span id="freshness"></span>
 </div>
@@ -93,22 +102,37 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
 
 <script>
 // ------- config -------------------------------------------------------------
-// Same-origin: the page and the /decks API are served by one Worker.
-const WORKER = "/decks";
-const ARCHETYPE = "modern-izzet-prowess";
+const WORKER = "/decks"; // same-origin: page + API served by one Worker
 
-// ------- stock list ---------------------------------------------------------
-const STOCK_MAIN = {
-  "Thundering Falls":1, "Slickshot Show-Off":4, "Violent Urge":2,
-  "Cori-Steel Cutter":4, "Mishra's Bauble":4, "Arid Mesa":4, "Lightning Bolt":4,
-  "Preordain":4, "Mutagenic Growth":4, "Steam Vents":3, "Monastery Swiftspear":4,
-  "Scalding Tarn":4, "Wooded Foothills":2, "Lava Dart":4, "Fiery Islet":2,
-  "Mountain":2, "Expressive Iteration":4, "Dragon's Rage Channeler":4,
+// Archetypes offered in the dropdown. Add a stock list under STOCKS[slug] to
+// enable comparison; without one, the archetype's recent decks are just listed.
+const ARCHETYPES = [
+  { slug:"modern-izzet-prowess",  label:"Izzet Prowess" },
+  { slug:"modern-boros-energy",   label:"Boros Energy" },
+  { slug:"modern-dimir-murktide", label:"Dimir Murktide" },
+  { slug:"modern-domain-zoo",     label:"Domain Zoo" },
+  { slug:"modern-living-end",     label:"Living End" },
+];
+
+// Stock lists keyed by archetype slug. A maindeck count may be a number (4) or
+// a range string: "2-3" (flag only outside the range), "0-2" (a flex slot that
+// is never "missing"). Sideboard is presence-only.
+const STOCKS = {
+  "modern-izzet-prowess": {
+    main: {
+      "Thundering Falls":1, "Slickshot Show-Off":4, "Violent Urge":2,
+      "Cori-Steel Cutter":4, "Mishra's Bauble":4, "Arid Mesa":4, "Lightning Bolt":4,
+      "Preordain":4, "Mutagenic Growth":4, "Steam Vents":3, "Monastery Swiftspear":4,
+      "Scalding Tarn":4, "Wooded Foothills":2, "Lava Dart":4, "Fiery Islet":2,
+      "Mountain":"2-3", "Expressive Iteration":4, "Dragon's Rage Channeler":4,
+    },
+    side: ["Meltdown","Consign to Memory","Spell Snare","Unholy Heat",
+           "Spell Pierce","Assault Strobe","Murktide Regent"],
+  },
+  // Add more here, e.g.:
+  // "modern-boros-energy": { main: { "Ocelot Pride":4, "Mountain":"1-2", ... }, side: [...] },
 };
-const STOCK_SIDE = new Set([
-  "Meltdown", "Consign to Memory", "Spell Snare", "Unholy Heat",
-  "Spell Pierce", "Assault Strobe", "Murktide Regent",
-]);
+
 const FETCHLANDS = new Set([
   "Arid Mesa","Scalding Tarn","Wooded Foothills","Bloodstained Mire",
   "Flooded Strand","Polluted Delta","Marsh Flats","Misty Rainforest",
@@ -116,7 +140,19 @@ const FETCHLANDS = new Set([
 ]);
 const FETCH_BUCKET = "Fetchland";
 
-// ------- logic --------------------------------------------------------------
+let ARCHETYPE = ARCHETYPES[0].slug; // current selection
+
+// ------- ranges + bucketing -------------------------------------------------
+function parseRange(spec) {
+  if (typeof spec === "number") return { min:spec, max:spec };
+  const m = String(spec).match(/^\s*(\d+)\s*-\s*(\d+)\s*$/);
+  if (m) return { min:+m[1], max:+m[2] };
+  const n = parseInt(spec, 10) || 0;
+  return { min:n, max:n };
+}
+const fmtRange = (r) => (r.min === r.max ? `${r.min}` : `${r.min}-${r.max}`);
+
+// deck counts (numbers) -> fetchlands summed into one bucket
 function bucket(counts) {
   const out = {};
   for (const [name, n] of Object.entries(counts)) {
@@ -125,22 +161,43 @@ function bucket(counts) {
   }
   return out;
 }
-const STOCK_MAIN_B = bucket(STOCK_MAIN);
+// stock spec (numbers/ranges) -> name: {min,max}, fetchlands summed
+function bucketStock(mainSpec) {
+  const out = {};
+  for (const [name, spec] of Object.entries(mainSpec)) {
+    const r = parseRange(spec);
+    const key = FETCHLANDS.has(name) ? FETCH_BUCKET : name;
+    out[key] = out[key]
+      ? { min:out[key].min + r.min, max:out[key].max + r.max }
+      : { ...r };
+  }
+  return out;
+}
+const currentStock = () => STOCKS[ARCHETYPE] || null;
 
+// ------- diff ---------------------------------------------------------------
 function diff(deck, ignoreCounts) {
+  const stock = currentStock();
+  if (!stock) return null;
+  const stockMainB = bucketStock(stock.main);
+  const stockSide = new Set(stock.side);
   const main = bucket(deck.main), side = deck.side;
-  const newMain = [], countMain = [], missingMain = [];
+
+  const newMain = [], countMain = [], missingMain = [], missingSide = [];
   for (const name of Object.keys(main).sort()) {
     const n = main[name];
-    if (!(name in STOCK_MAIN_B)) newMain.push([name, n]);
-    else if (n !== STOCK_MAIN_B[name] && !ignoreCounts)
-      countMain.push([name, n, STOCK_MAIN_B[name]]);
+    if (!(name in stockMainB)) { newMain.push([name, n]); continue; }
+    const r = stockMainB[name];
+    if ((n < r.min || n > r.max) && !ignoreCounts) countMain.push([name, n, r]);
   }
-  for (const name of Object.keys(STOCK_MAIN_B).sort())
-    if (!(name in main)) missingMain.push([name, STOCK_MAIN_B[name]]);
-  const newSide = Object.keys(side).filter((n) => !STOCK_SIDE.has(n)).sort()
+  for (const name of Object.keys(stockMainB).sort())
+    if (!(name in main) && stockMainB[name].min > 0)
+      missingMain.push([name, stockMainB[name]]);
+  const newSide = Object.keys(side).filter((n) => !stockSide.has(n)).sort()
     .map((n) => [n, side[n]]);
-  const missingSide = [...STOCK_SIDE].filter((n) => !(n in side)).sort();
+  for (const name of [...stockSide].sort())
+    if (!(name in side)) missingSide.push(name);
+
   const unusual = new Set([
     ...newMain.map((x) => x[0]),
     ...countMain.map((x) => x[0]),
@@ -148,6 +205,9 @@ function diff(deck, ignoreCounts) {
   ]);
   return { newMain, countMain, missingMain, newSide, missingSide, unusual };
 }
+const deviationCount = (d) =>
+  d.newMain.length + d.countMain.length + d.newSide.length +
+  d.missingMain.length + d.missingSide.length;
 
 // ------- rendering ----------------------------------------------------------
 const esc = (s) => String(s).replace(/[&<>"']/g,
@@ -157,10 +217,14 @@ function chips(d) {
   const out = [];
   for (const [name, n] of d.newMain)
     out.push(`<span class="chip main" title="not in stock maindeck">${n} ${esc(name)}</span>`);
-  for (const [name, n, sn] of d.countMain)
-    out.push(`<span class="chip count" title="stock runs ${sn}">${n} ${esc(name)} <em>(stock ${sn})</em></span>`);
+  for (const [name, n, r] of d.countMain)
+    out.push(`<span class="chip count" title="stock runs ${fmtRange(r)}">${n} ${esc(name)} <em>(stock ${fmtRange(r)})</em></span>`);
   for (const [name, n] of d.newSide)
     out.push(`<span class="chip side" title="not in stock sideboard">SB ${n} ${esc(name)}</span>`);
+  for (const [name, r] of d.missingMain)
+    out.push(`<span class="chip missmd" title="stock runs ${fmtRange(r)}, deck has 0">${esc(name)} <em>(stock ${fmtRange(r)})</em></span>`);
+  for (const name of d.missingSide)
+    out.push(`<span class="chip misssb" title="in stock sideboard, absent here">SB ${esc(name)}</span>`);
   return out.length ? out.join("") : '<span class="chip none">stock list</span>';
 }
 
@@ -182,11 +246,35 @@ const el = (id) => document.getElementById(id);
 const body = el("panelbody");
 let DATA = null, pinned = null;
 
+function initArchetypes() {
+  const sel = el("archetype");
+  sel.innerHTML = ARCHETYPES.map((a) =>
+    `<option value="${a.slug}">${esc(a.label)}${STOCKS[a.slug] ? "" : " (no stock list)"}</option>`
+  ).join("");
+  sel.value = ARCHETYPE;
+  sel.addEventListener("change", () => {
+    ARCHETYPE = sel.value;
+    const a = ARCHETYPES.find((x) => x.slug === ARCHETYPE);
+    el("title").textContent = `${a.label} — unusual card scan`;
+    document.title = `${a.label} — unusual card scan`;
+    renderStockbar();
+    load(false);
+  });
+}
+
 function renderStockbar() {
-  const md = Object.keys(STOCK_MAIN_B).sort()
-    .map((n) => `<span class="stk">${STOCK_MAIN_B[n]} ${esc(n)}</span>`).join("");
-  const sb = [...STOCK_SIDE].sort().map(esc).join(", ");
-  el("stockbar").innerHTML =
+  const stock = currentStock();
+  const bar = el("stockbar");
+  if (!stock) {
+    bar.innerHTML = "<span>No stock list defined for this archetype — decks are " +
+      "listed without comparison. Add one under <code>STOCKS</code> in index.html.</span>";
+    return;
+  }
+  const b = bucketStock(stock.main);
+  const md = Object.keys(b).sort()
+    .map((n) => `<span class="stk">${fmtRange(b[n])} ${esc(n)}</span>`).join("");
+  const sb = stock.side.slice().sort().map(esc).join(", ");
+  bar.innerHTML =
     `<strong style="color:var(--ink)">Stock&nbsp;MD:</strong> ${md}` +
     `<span>&nbsp;·&nbsp;<strong style="color:var(--ink)">SB:</strong> ${sb}</span>`;
 }
@@ -195,36 +283,33 @@ function render() {
   if (!DATA) return;
   const hideStock = el("hideStock").checked;
   const ignoreCounts = el("ignoreCounts").checked;
+  const hasStock = !!currentStock();
   const list = el("decks");
   list.innerHTML = "";
   let shown = 0;
   for (const deck of DATA.decks) {
-    const d = diff(deck, ignoreCounts);
-    const nUnusual = d.newMain.length + d.countMain.length + d.newSide.length;
-    if (hideStock && nUnusual === 0) continue;
+    const d = hasStock ? diff(deck, ignoreCounts) : null;
+    const n = d ? deviationCount(d) : 0;
+    if (hideStock && hasStock && n === 0) continue;
     shown++;
 
     const li = document.createElement("li");
     li.className = "deck";
-    let missing = "";
-    if (d.missingMain.length || d.missingSide.length) {
-      const bits = [];
-      if (d.missingMain.length)
-        bits.push("MD: " + d.missingMain.map(([n, c]) => `${c}× ${esc(n)}`).join(", "));
-      if (d.missingSide.length)
-        bits.push("SB: " + d.missingSide.map(esc).join(", "));
-      missing = `<div class="missing">cut from stock — ${bits.join(" · ")}</div>`;
-    }
+    const chipsHtml = d ? chips(d)
+      : '<span class="chip none">no stock list for this archetype</span>';
+    const badgeHtml = hasStock
+      ? `<span class="badge ${n === 0 ? "zero" : ""}">${n}</span>`
+      : '<span class="badge zero">–</span>';
     li.innerHTML =
       `<div class="row">
         <span class="place">${esc(deck.place)}</span>
         <span class="player"><a href="${esc(deck.url)}" target="_blank" rel="noopener">${esc(deck.player)}</a></span>
         <span class="tourney">${esc(deck.tourney)}</span>
         <span class="date">${esc(deck.date)}</span>
-        <span class="badge ${nUnusual === 0 ? "zero" : ""}">${nUnusual}</span>
+        ${badgeHtml}
       </div>
-      <div class="chips">${chips(d)}</div>${missing}`;
-    li._html = panelHtml(deck, d.unusual);
+      <div class="chips">${chipsHtml}</div>`;
+    li._html = panelHtml(deck, d ? d.unusual : new Set());
     li.addEventListener("mouseenter", () => { if (!pinned) showPanel(li); });
     li.addEventListener("click", () => { pinned = pinned === li ? null : li; showPanel(li); });
     list.appendChild(li);
@@ -241,6 +326,7 @@ function showPanel(li) {
 async function load(refresh) {
   el("status").style.display = "block";
   el("status").textContent = refresh ? "refreshing from mtggoldfish…" : "loading decks…";
+  el("decks").innerHTML = "";
   el("refresh").disabled = true;
   try {
     const u = `${WORKER}?archetype=${encodeURIComponent(ARCHETYPE)}${refresh ? "&refresh=1" : ""}`;
@@ -248,8 +334,7 @@ async function load(refresh) {
     if (!r.ok) throw new Error(`worker HTTP ${r.status}`);
     DATA = await r.json();
     el("status").style.display = "none";
-    const when = new Date(DATA.generated);
-    el("freshness").textContent = "data as of " + when.toLocaleString();
+    el("freshness").textContent = "data as of " + new Date(DATA.generated).toLocaleString();
     render();
   } catch (err) {
     el("status").textContent = "Failed to load: " + err.message +
@@ -259,6 +344,7 @@ async function load(refresh) {
   }
 }
 
+initArchetypes();
 renderStockbar();
 el("hideStock").addEventListener("change", render);
 el("ignoreCounts").addEventListener("change", render);

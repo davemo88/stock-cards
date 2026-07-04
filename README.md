@@ -32,18 +32,34 @@ index.html  ◄── diffs each deck vs the stock list in the browser ───
 
 ## Comparison rules
 
-- **Maindeck** — flags cards absent from the stock maindeck *and* cards whose
-  count differs (count matters). The "ignore count deltas" toggle hides the
-  latter.
-- **Sideboard** — presence vs absence only.
+Each chip is colour-coded:
+
+- **md new** (orange) — maindeck card absent from the stock list.
+- **count off** (purple) — maindeck card whose count falls outside the stock
+  range. The "ignore count deltas" toggle hides these.
+- **sb new** (blue) — sideboard card not in the stock sideboard.
+- **md missing** / **sb missing** (struck-through rose / teal) — a stock card
+  absent from this deck.
 - **Fetchlands** (the classic 10 + Prismatic Vista / Fabled Passage) are
   bucketed into one virtual `Fetchland` so mana-base fetch swaps don't flag.
 
+### Ranges
+
+A stock maindeck count may be a number (`4`) or a **range string**:
+
+- `"2-3"` — only flags when the deck runs fewer than 2 or more than 3.
+- `"0-2"` — a flex slot: 0–2 copies are fine and its absence is never "missing".
+
+## Archetypes
+
+The dropdown is driven by `ARCHETYPES` in `worker/public/index.html`; the Worker
+scrapes any `?archetype=<slug>`. An archetype only gets comparison/highlighting
+when it has an entry in `STOCKS` — otherwise its recent decks are listed plainly.
+
 ## Editing the stock list
 
-Edit `STOCK_MAIN` / `STOCK_SIDE` in `worker/public/index.html`. To point at a
-different archetype, change `ARCHETYPE` there — the Worker accepts any
-`?archetype=<slug>`.
+Edit the relevant `STOCKS[<slug>]` entry (`main` with numbers/ranges, `side` as
+a list of names) in `worker/public/index.html`.
 
 ## Deploying
 
