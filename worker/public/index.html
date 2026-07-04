@@ -38,8 +38,9 @@ header .sub a { color:var(--side); }
 .digest .chip .dcount { opacity:.6; }
 .layout { display:flex; align-items:flex-start; }
 ul.decks { list-style:none; margin:0; padding:14px 24px; flex:1; min-width:0; }
-li.deck { background:var(--card); border:1px solid var(--line); border-radius:8px;
-  padding:10px 12px; margin-bottom:8px; cursor:default; transition:border-color .1s; }
+li.deck { position:relative; background:var(--card); border:1px solid var(--line);
+  border-radius:8px; padding:10px 12px; margin-bottom:8px; cursor:default;
+  transition:border-color .1s; }
 li.deck:hover { border-color:#3a4552; }
 li.deck.active { border-color:var(--accent); }
 .row { display:flex; gap:12px; align-items:baseline; flex-wrap:wrap; }
@@ -49,9 +50,10 @@ li.deck.active { border-color:var(--accent); }
 .player a:hover { text-decoration:underline; }
 .tourney { color:var(--dim); flex:1; min-width:150px; }
 .date { color:var(--dim); font-variant-numeric:tabular-nums; }
-.badge { margin-left:auto; background:#1c2229; border:1px solid var(--line);
-  color:var(--dim); font-weight:700; border-radius:20px; text-align:center;
-  padding:1px 9px; font-size:12px; font-variant-numeric:tabular-nums; }
+.badge { position:absolute; right:12px; bottom:10px; background:#1c2229;
+  border:1px solid var(--line); color:var(--dim); font-weight:700;
+  border-radius:20px; text-align:center; padding:1px 9px; font-size:12px;
+  font-variant-numeric:tabular-nums; }
 .badge b { font-weight:700; }
 .badge.zero { background:#2b333c; color:var(--dim); border-color:transparent; }
 .chips { margin-top:7px; display:flex; flex-wrap:wrap; gap:5px; }
@@ -436,9 +438,9 @@ function render() {
         <span class="player"><a href="${esc(deck.url)}" target="_blank" rel="noopener">${esc(deck.player)}</a></span>
         <span class="tourney">${esc(deck.tourney)}</span>
         <span class="date">${esc(deck.date)}</span>
-        ${badgeHtml}
       </div>
-      ${diffHtml}`;
+      ${diffHtml}
+      ${badgeHtml}`;
     li._html = panelHtml(deck, d);
     li.addEventListener("mouseenter", () => { if (!pinned) showPanel(li); });
     li.addEventListener("click", () => { pinned = pinned === li ? null : li; showPanel(li); });
