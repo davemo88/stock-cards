@@ -36,33 +36,36 @@ The maindeck and sideboard are compared identically, and each deck's
 differences are laid out in four columns — the maindeck pair, a divider, then
 the sideboard pair:
 
-- **md added** (orange) / **sb added** (blue) — copies *above* the stock max,
-  shown as `+N Card`. Includes brand-new cards (expected 0) and overages of a
-  stock card (e.g. 2 Spell Snare vs a stock 1 → `+1 Spell Snare`).
-- **md removed** (purple) / **sb removed** (teal) — copies *below* the stock min,
-  shown as `-N Card`. Includes partial reductions (3 vs a stock 4 → `-1 Card`)
-  and full cuts (0 vs a stock 4 → `-4 Card`). The "ignore count deltas" toggle
-  keeps only brand-new cards and full cuts, hiding pure quantity changes.
+Every card's delta is measured from its **nominal** stock count (see Ranges),
+so the added and removed columns always balance for a fixed-size deck.
+
+- **md added** (orange) / **sb added** (blue) — copies *above* nominal, shown as
+  `+N Card`. Includes brand-new cards and overages of a stock card.
+- **md removed** (purple) / **sb removed** (teal) — copies *below* nominal, shown
+  as `-N Card`. Includes partial reductions and full cuts.
+- A delta whose count still sits **inside the allowed range** is shown like any
+  other chip (so the columns reconcile) but does **not** count toward the badge —
+  e.g. a deck on 9 fetchlands vs a `10 (8-10)` stock shows `-1 Fetchland` without
+  being flagged as unusual. The "hide in-range moves" toggle drops those chips.
 - **Fetchlands** (the classic 10 + Prismatic Vista / Fabled Passage) are
   bucketed into one virtual `Fetchland` so mana-base fetch swaps don't flag.
 - Hover any card name (chips, decklist panel, stock bar) for a Scryfall image.
 
-### Ranges
+### Nominals and ranges
 
-A stock count (maindeck *or* sideboard) may be a number (`4`) or a **range
-string**:
+A stock count carries a **nominal** (its count in the real list — the reference
+all deltas are measured from) and an allowed **range**. Three forms:
 
-- `"2-3"` — only flags when the deck runs fewer than 2 or more than 3.
-- `"0-2"` — a flex slot: 0–2 copies are fine and its absence never flags.
-- Give the whole fetch bucket a range with a `"Fetchland": "8-10"` stock entry.
+- `4` — nominal 4, exact.
+- `"2-3"` — range 2–3, nominal = the low end (2).
+- `"10 (8-10)"` — nominal 10, allowed range 8–10.
 
-Because a within-range move is invisible, a swap can leave the columns
-unbalanced (cut a Fiery Islet, add a 3rd Mountain within its `2-3` range → only
-the `-1` shows). To keep the picture complete, a within-range increase above the
-low end of its range is **revealed as a muted, dashed `rng` chip** in the added
-column, so the hidden half of the swap still appears and the columns reconcile.
-Muted reveals don't count toward the badge, and the `Fetchland` bucket is left
-quiet so the mana base doesn't generate noise.
+The nominals should sum to the real deck size (60 maindeck / 15 sideboard) so
+the columns balance. Ranges only widen what counts as "normal": a count inside
+the range still shows its delta (to keep the swap math complete) but isn't
+flagged. This is how a fetch trade surfaces — cut a Fiery Islet for a 3rd
+Mountain and the `-1 Fiery Islet` is balanced by `+1 Mountain`; run 9 fetches
+instead of 10 and `-1 Fetchland` shows without inflating the badge.
 
 ## Archetypes
 

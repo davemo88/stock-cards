@@ -54,15 +54,17 @@ li.deck.active { border-color:var(--accent); }
 .chip.count { color:var(--count); border-color:#42355c; background:#1e1826; }
 .chip.side { color:var(--side); border-color:#2a4a63; background:#111f2a; }
 .chip.scount { color:var(--misssb); border-color:#274b46; background:#0f201d; }
-.chip.muted { opacity:.5; border-style:dashed; }
 .chip.none { color:var(--dim); border-color:var(--line); }
-.diffcols { margin-top:8px; display:grid; grid-template-columns:repeat(4,1fr); gap:8px 10px; }
+.diffcols { margin-top:8px; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.sect { display:flex; justify-content:center; gap:14px; min-width:0; }
+.sect.divide { border-left:1px solid var(--line); padding-left:14px; }
 .col { display:flex; flex-direction:column; gap:4px; align-items:flex-start; min-width:0; }
-.col.divide { border-left:1px solid var(--line); padding-left:11px; }
 .col .chip { max-width:100%; white-space:normal; }
 .col .empty { color:#39424c; }
-@media (max-width:1100px) { .diffcols { grid-template-columns:repeat(3,1fr); } }
-@media (max-width:640px) { .diffcols { grid-template-columns:repeat(2,1fr); } }
+@media (max-width:640px) {
+  .diffcols { grid-template-columns:1fr; }
+  .sect.divide { border-left:none; padding-left:0; border-top:1px solid var(--line); padding-top:6px; }
+}
 aside { position:sticky; top:0; width:300px; flex:none; height:100vh;
   border-left:1px solid var(--line); padding:16px; overflow:auto; }
 aside .hint { color:var(--dim); font-size:12px; }
@@ -96,7 +98,7 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
 <div class="controls">
   <label>archetype <select id="archetype"></select></label>
   <label><input type="checkbox" id="hideStock"> hide stock-identical lists</label>
-  <label><input type="checkbox" id="ignoreCounts"> ignore count deltas</label>
+  <label><input type="checkbox" id="ignoreCounts"> hide in-range moves</label>
   <button id="refresh">↻ refresh</button>
   <span id="freshness"></span>
 </div>
@@ -131,11 +133,10 @@ const STOCKS = {
       "Thundering Falls":1, "Slickshot Show-Off":4, "Violent Urge":2,
       "Cori-Steel Cutter":4, "Mishra's Bauble":4, "Lightning Bolt":4,
       "Preordain":4, "Mutagenic Growth":4, "Steam Vents":3, "Monastery Swiftspear":4,
-      "Lava Dart":4, "Fiery Islet":2, "Mountain":"2-3",
+      "Lava Dart":4, "Fiery Islet":2, "Mountain":"2 (2-3)",
       "Expressive Iteration":4, "Dragon's Rage Channeler":4,
-      // All fetchlands are bucketed under the "Fetchland" key, so give the
-      // whole bucket a range rather than listing each fetch:
-      "Fetchland":"8-10",
+      // All fetchlands bucket under the "Fetchland" key. Nominal 10, allowed 8-10:
+      "Fetchland":"10 (8-10)",
     },
     side: {
       "Meltdown":2, "Consign to Memory":4, "Spell Snare":1, "Unholy Heat":4,
@@ -155,15 +156,24 @@ const FETCH_BUCKET = "Fetchland";
 
 let ARCHETYPE = ARCHETYPES[0].slug; // current selection
 
-// ------- ranges + bucketing -------------------------------------------------
-function parseRange(spec) {
-  if (typeof spec === "number") return { min:spec, max:spec };
-  const m = String(spec).match(/^\s*(\d+)\s*-\s*(\d+)\s*$/);
-  if (m) return { min:+m[1], max:+m[2] };
-  const n = parseInt(spec, 10) || 0;
-  return { min:n, max:n };
+// ------- stock parsing + bucketing ------------------------------------------
+// A stock count carries a nominal (its count in the real list) and an allowed
+// range. Deltas are measured from the nominal so the columns always balance;
+// the range only decides whether a delta counts as "unusual" (badge).
+//   4            -> nominal 4, exact
+//   "2-3"        -> range 2-3, nominal = low end (2)
+//   "10 (8-10)"  -> nominal 10, allowed range 8-10
+function parseStock(spec) {
+  if (typeof spec === "number") return { nom: spec, min: spec, max: spec };
+  const s = String(spec).trim();
+  let m = s.match(/^(\d+)\s*\(\s*(\d+)\s*-\s*(\d+)\s*\)$/);   // "nom (min-max)"
+  if (m) return { nom: +m[1], min: +m[2], max: +m[3] };
+  m = s.match(/^(\d+)\s*-\s*(\d+)$/);                         // "min-max"
+  if (m) return { nom: +m[1], min: +m[1], max: +m[2] };
+  const n = parseInt(s, 10) || 0;
+  return { nom: n, min: n, max: n };
 }
-const fmtRange = (r) => (r.min === r.max ? `${r.min}` : `${r.min}-${r.max}`);
+const fmtStock = (r) => (r.min === r.max ? `${r.nom}` : `${r.nom} (${r.min}-${r.max})`);
 
 // deck counts (numbers) -> fetchlands summed into one bucket
 function bucket(counts) {
@@ -174,14 +184,14 @@ function bucket(counts) {
   }
   return out;
 }
-// stock spec (numbers/ranges) -> name: {min,max}, fetchlands summed
+// stock spec (numbers/ranges) -> name: {nom,min,max}, fetchlands summed
 function bucketStock(mainSpec) {
   const out = {};
   for (const [name, spec] of Object.entries(mainSpec)) {
-    const r = parseRange(spec);
+    const r = parseStock(spec);
     const key = FETCHLANDS.has(name) ? FETCH_BUCKET : name;
     out[key] = out[key]
-      ? { min:out[key].min + r.min, max:out[key].max + r.max }
+      ? { nom: out[key].nom + r.nom, min: out[key].min + r.min, max: out[key].max + r.max }
       : { ...r };
   }
   return out;
@@ -197,27 +207,21 @@ function diff(deck, ignoreCounts) {
   const main = bucket(deck.main), side = bucket(deck.side);
 
   const addMain = [], remMain = [], addSide = [], remSide = [];
-  // Classify each card's delta from its stock range. Entries are
-  // [name, delta, deckCount, range, muted]:
-  //  - above max      -> addition (bright)
-  //  - below min      -> removal (bright); a full cut to 0 counts here
-  //  - within range,  -> a "slack" move that would otherwise be invisible; reveal
-  //    above the low     it muted (from the low end) so a swap hidden by a range
-  //    end               still shows and the columns reconcile. The Fetchland
-  //                      bucket is left quiet on purpose (mana-base noise).
+  // Every card's delta is measured from its nominal, so the added and removed
+  // columns balance for a fixed-size deck. Entries: [name, delta, deckCount,
+  // range, inRange]. A delta whose count still sits inside the allowed range is
+  // shown like any other but does NOT count toward the badge (e.g. fetch 9 vs a
+  // 10 (8-10) stock). The "hide in-range moves" toggle drops those chips.
   const compare = (counts, stockB, addArr, remArr) => {
     const names = new Set([...Object.keys(counts), ...Object.keys(stockB)]);
     for (const name of [...names].sort()) {
       const n = counts[name] || 0;
-      const r = stockB[name] || { min: 0, max: 0 };
-      const inStock = name in stockB;
-      if (n > r.max) {
-        if (!ignoreCounts || !inStock) addArr.push([name, n - r.max, n, r, false]);
-      } else if (n < r.min) {
-        if (!ignoreCounts || n === 0) remArr.push([name, n - r.min, n, r, false]);
-      } else if (n > r.min && name !== FETCH_BUCKET && !ignoreCounts) {
-        addArr.push([name, n - r.min, n, r, true]);   // within-range slack, revealed muted
-      }
+      const r = stockB[name] || { nom: 0, min: 0, max: 0 };
+      const delta = n - r.nom;
+      if (delta === 0) continue;
+      const inRange = n >= r.min && n <= r.max;
+      if (inRange && ignoreCounts) continue;
+      (delta > 0 ? addArr : remArr).push([name, delta, n, r, inRange]);
     }
   };
   compare(main, stockMainB, addMain, remMain);
@@ -228,9 +232,9 @@ function diff(deck, ignoreCounts) {
       .filter((x) => !x[4]).map((x) => x[0]));
   return { addMain, remMain, addSide, remSide, unusual };
 }
-const bright = (a) => a.filter((x) => !x[4]).length;   // muted reveals don't count
+const notable = (a) => a.filter((x) => !x[4]).length;  // in-range moves don't count
 const deviationCount = (d) =>
-  bright(d.addMain) + bright(d.remMain) + bright(d.addSide) + bright(d.remSide);
+  notable(d.addMain) + notable(d.remMain) + notable(d.addSide) + notable(d.remSide);
 
 // ------- rendering ----------------------------------------------------------
 const esc = (s) => String(s).replace(/[&<>"']/g,
@@ -238,26 +242,23 @@ const esc = (s) => String(s).replace(/[&<>"']/g,
 // data-card attr for a Scryfall hover preview (skip the synthetic Fetchland bucket)
 const dc = (name) => (name === FETCH_BUCKET ? "" : ` data-card="${esc(name)}"`);
 
-// [name, delta, deckCount, range, muted] -> a signed chip ("+1 Card" / "-2 Card").
-// Muted chips are within-range "slack" moves, dimmed and tagged "rng".
-const chip = (cls) => ([name, delta, n, r, muted]) =>
-  `<span class="chip ${cls}${muted ? " muted" : ""}"${dc(name)} title="deck ${n}, stock ${fmtRange(r)}${muted ? " — within range" : ""}">${delta > 0 ? "+" : ""}${delta} ${esc(name)}${muted ? ' <em>rng</em>' : ""}</span>`;
+// [name, delta, deckCount, range, inRange] -> a signed chip ("+1 Card" / "-2 Card").
+const chip = (cls) => ([name, delta, n, r]) =>
+  `<span class="chip ${cls}"${dc(name)} title="deck ${n}, stock ${fmtStock(r)}">${delta > 0 ? "+" : ""}${delta} ${esc(name)}</span>`;
 
-// Columns: maindeck added | removed, divider, then sideboard added | removed.
-// Bright (out-of-range) chips first, then muted reveals; each group by magnitude.
-const byMag = (arr) => arr.slice().sort((a, b) =>
-  (Number(a[4]) - Number(b[4])) || (Math.abs(b[1]) - Math.abs(a[1])));
+// Two sections (maindeck | sideboard); each centers its added|removed columns.
+// Each column sorted by delta magnitude, largest change first.
+const byMag = (arr) => arr.slice().sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
 function diffCols(d) {
-  const cols = [
-    ["", byMag(d.addMain).map(chip("main"))],       // md added
-    ["", byMag(d.remMain).map(chip("count"))],      // md removed
-    ["divide", byMag(d.addSide).map(chip("side"))], // sb added
-    ["", byMag(d.remSide).map(chip("scount"))],     // sb removed
-  ];
-  return '<div class="diffcols">' + cols.map(([cls, arr]) =>
-    `<div class="col ${cls}">` +
-    (arr.length ? arr.join("") : '<span class="empty">·</span>') + "</div>"
-  ).join("") + "</div>";
+  const col = (arr, cls) => {
+    const items = byMag(arr).map(chip(cls));
+    return '<div class="col">' +
+      (items.length ? items.join("") : '<span class="empty">·</span>') + "</div>";
+  };
+  return '<div class="diffcols">' +
+    '<div class="sect">' + col(d.addMain, "main") + col(d.remMain, "count") + "</div>" +
+    '<div class="sect divide">' + col(d.addSide, "side") + col(d.remSide, "scount") + "</div>" +
+  "</div>";
 }
 
 function panelHtml(deck, unusual) {
@@ -304,10 +305,10 @@ function renderStockbar() {
   }
   const b = bucketStock(stock.main);
   const md = Object.keys(b).sort()
-    .map((n) => `<span class="stk"${dc(n)}>${fmtRange(b[n])} ${esc(n)}</span>`).join("");
+    .map((n) => `<span class="stk"${dc(n)}>${fmtStock(b[n])} ${esc(n)}</span>`).join("");
   const sbB = bucketStock(stock.side);
   const sb = Object.keys(sbB).sort()
-    .map((n) => `<span class="stk"${dc(n)}>${fmtRange(sbB[n])} ${esc(n)}</span>`).join(" ");
+    .map((n) => `<span class="stk"${dc(n)}>${fmtStock(sbB[n])} ${esc(n)}</span>`).join(" ");
   bar.innerHTML =
     `<strong style="color:var(--ink)">Stock&nbsp;MD:</strong> ${md}` +
     `<span>&nbsp;·&nbsp;<strong style="color:var(--ink)">SB:</strong></span> ${sb}`;
