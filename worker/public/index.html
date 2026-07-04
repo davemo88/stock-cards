@@ -55,16 +55,13 @@ li.deck.active { border-color:var(--accent); }
 .chip.side { color:var(--side); border-color:#2a4a63; background:#111f2a; }
 .chip.scount { color:var(--misssb); border-color:#274b46; background:#0f201d; }
 .chip.none { color:var(--dim); border-color:var(--line); }
-.diffcols { margin-top:8px; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-.sect { display:flex; justify-content:center; gap:14px; min-width:0; }
-.sect.divide { border-left:1px solid var(--line); padding-left:14px; }
+.diffcols { margin-top:8px; display:grid; grid-template-columns:repeat(4,1fr); gap:8px 10px; }
 .col { display:flex; flex-direction:column; gap:4px; align-items:flex-start; min-width:0; }
+.col.divide { border-left:1px solid var(--line); padding-left:11px; }
 .col .chip { max-width:100%; white-space:normal; }
 .col .empty { color:#39424c; }
-@media (max-width:640px) {
-  .diffcols { grid-template-columns:1fr; }
-  .sect.divide { border-left:none; padding-left:0; border-top:1px solid var(--line); padding-top:6px; }
-}
+@media (max-width:1100px) { .diffcols { grid-template-columns:repeat(3,1fr); } }
+@media (max-width:640px) { .diffcols { grid-template-columns:repeat(2,1fr); } }
 aside { position:sticky; top:0; width:300px; flex:none; height:100vh;
   border-left:1px solid var(--line); padding:16px; overflow:auto; }
 aside .hint { color:var(--dim); font-size:12px; }
@@ -246,19 +243,20 @@ const dc = (name) => (name === FETCH_BUCKET ? "" : ` data-card="${esc(name)}"`);
 const chip = (cls) => ([name, delta, n, r]) =>
   `<span class="chip ${cls}"${dc(name)} title="deck ${n}, stock ${fmtStock(r)}">${delta > 0 ? "+" : ""}${delta} ${esc(name)}</span>`;
 
-// Two sections (maindeck | sideboard); each centers its added|removed columns.
+// Columns: maindeck added | removed, divider, then sideboard added | removed.
 // Each column sorted by delta magnitude, largest change first.
 const byMag = (arr) => arr.slice().sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
 function diffCols(d) {
-  const col = (arr, cls) => {
-    const items = byMag(arr).map(chip(cls));
-    return '<div class="col">' +
-      (items.length ? items.join("") : '<span class="empty">·</span>') + "</div>";
-  };
-  return '<div class="diffcols">' +
-    '<div class="sect">' + col(d.addMain, "main") + col(d.remMain, "count") + "</div>" +
-    '<div class="sect divide">' + col(d.addSide, "side") + col(d.remSide, "scount") + "</div>" +
-  "</div>";
+  const cols = [
+    ["", byMag(d.addMain).map(chip("main"))],       // md added
+    ["", byMag(d.remMain).map(chip("count"))],      // md removed
+    ["divide", byMag(d.addSide).map(chip("side"))], // sb added
+    ["", byMag(d.remSide).map(chip("scount"))],     // sb removed
+  ];
+  return '<div class="diffcols">' + cols.map(([cls, arr]) =>
+    `<div class="col ${cls}">` +
+    (arr.length ? arr.join("") : '<span class="empty">·</span>') + "</div>"
+  ).join("") + "</div>";
 }
 
 function panelHtml(deck, unusual) {
