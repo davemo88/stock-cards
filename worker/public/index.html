@@ -86,10 +86,10 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
   <h1 id="title">Izzet Prowess — unusual card scan</h1>
   <div class="sub"><span id="meta">loading…</span> ·
     hover a deck for the full list · fetchlands bucketed ·
-    <span style="color:var(--hot)">md new</span> /
-    <span style="color:var(--count)">md count off</span> /
-    <span style="color:var(--side)">sb new</span> /
-    <span style="color:var(--misssb)">sb count off</span></div>
+    <span style="color:var(--hot)">md added</span> /
+    <span style="color:var(--count)">md removed</span> /
+    <span style="color:var(--side)">sb added</span> /
+    <span style="color:var(--misssb)">sb removed</span></div>
 </header>
 <div class="stockbar" id="stockbar"></div>
 <div class="controls">
@@ -195,31 +195,32 @@ function diff(deck, ignoreCounts) {
   const stockSideB = bucketStock(stock.side);
   const main = bucket(deck.main), side = bucket(deck.side);
 
-  const newMain = [], countMain = [], newSide = [], countSide = [];
-  // Compare one zone: extras go to newArr, out-of-range (incl. absent = 0) to countArr.
-  const compare = (counts, stockB, newArr, countArr) => {
-    for (const name of Object.keys(counts).sort()) {
-      const n = counts[name];
-      if (!(name in stockB)) { newArr.push([name, n]); continue; }
-      const r = stockB[name];
-      if ((n < r.min || n > r.max) && !ignoreCounts) countArr.push([name, n, r]);
+  const addMain = [], remMain = [], addSide = [], remSide = [];
+  // Split every card's delta from its stock range by direction: copies above
+  // the max are additions; copies below the min (incl. a full cut to 0) are
+  // removals. Entries: [name, delta, deckCount, range].
+  const compare = (counts, stockB, addArr, remArr) => {
+    const names = new Set([...Object.keys(counts), ...Object.keys(stockB)]);
+    for (const name of [...names].sort()) {
+      const n = counts[name] || 0;
+      const r = stockB[name] || { min: 0, max: 0 };
+      const inStock = name in stockB;
+      if (n > r.max) {                                  // added copies (incl. brand-new)
+        if (!ignoreCounts || !inStock) addArr.push([name, n - r.max, n, r]);
+      } else if (n < r.min) {                           // removed copies (incl. full cut)
+        if (!ignoreCounts || n === 0) remArr.push([name, n - r.min, n, r]);
+      }
     }
-    if (!ignoreCounts)
-      for (const name of Object.keys(stockB).sort())
-        if (!(name in counts) && stockB[name].min > 0)
-          countArr.push([name, 0, stockB[name]]);
   };
-  compare(main, stockMainB, newMain, countMain);
-  compare(side, stockSideB, newSide, countSide);
+  compare(main, stockMainB, addMain, remMain);
+  compare(side, stockSideB, addSide, remSide);
 
-  const unusual = new Set([
-    ...newMain.map((x) => x[0]), ...countMain.map((x) => x[0]),
-    ...newSide.map((x) => x[0]), ...countSide.map((x) => x[0]),
-  ]);
-  return { newMain, countMain, newSide, countSide, unusual };
+  const unusual = new Set(
+    [...addMain, ...remMain, ...addSide, ...remSide].map((x) => x[0]));
+  return { addMain, remMain, addSide, remSide, unusual };
 }
 const deviationCount = (d) =>
-  d.newMain.length + d.countMain.length + d.newSide.length + d.countSide.length;
+  d.addMain.length + d.remMain.length + d.addSide.length + d.remSide.length;
 
 // ------- rendering ----------------------------------------------------------
 const esc = (s) => String(s).replace(/[&<>"']/g,
@@ -227,20 +228,17 @@ const esc = (s) => String(s).replace(/[&<>"']/g,
 // data-card attr for a Scryfall hover preview (skip the synthetic Fetchland bucket)
 const dc = (name) => (name === FETCH_BUCKET ? "" : ` data-card="${esc(name)}"`);
 
-// Signed distance of a count from its stock range (0 vs 2-3 -> "-2", 4 vs 2-3 -> "+1").
-const sgn = (n, r) => { const dlt = n > r.max ? n - r.max : n - r.min; return (dlt > 0 ? "+" : "") + dlt; };
-const cNew = (cls) => ([name, n]) =>
-  `<span class="chip ${cls}"${dc(name)} title="not in stock">+${n} ${esc(name)}</span>`;
-const cCnt = (cls) => ([name, n, r]) =>
-  `<span class="chip ${cls}"${dc(name)} title="deck ${n}, stock ${fmtRange(r)}">${sgn(n, r)} ${esc(name)}</span>`;
+// [name, delta, deckCount, range] -> a signed chip ("+1 Card" / "-2 Card").
+const chip = (cls) => ([name, delta, n, r]) =>
+  `<span class="chip ${cls}"${dc(name)} title="deck ${n}, stock ${fmtRange(r)}">${delta > 0 ? "+" : ""}${delta} ${esc(name)}</span>`;
 
-// One column per category of difference (maindeck pair | sideboard pair).
+// Columns: maindeck added | removed, divider, then sideboard added | removed.
 function diffCols(d) {
   const cols = [
-    ["", d.newMain.map(cNew("main"))],        // md new
-    ["", d.countMain.map(cCnt("count"))],     // md count off (incl. 0 = missing)
-    ["divide", d.newSide.map(cNew("side"))],  // sb new
-    ["", d.countSide.map(cCnt("scount"))],    // sb count off (incl. 0 = missing)
+    ["", d.addMain.map(chip("main"))],       // md added
+    ["", d.remMain.map(chip("count"))],      // md removed
+    ["divide", d.addSide.map(chip("side"))], // sb added
+    ["", d.remSide.map(chip("scount"))],     // sb removed
   ];
   return '<div class="diffcols">' + cols.map(([cls, arr]) =>
     `<div class="col ${cls}">` +

@@ -36,13 +36,13 @@ The maindeck and sideboard are compared identically, and each deck's
 differences are laid out in four columns — the maindeck pair, a divider, then
 the sideboard pair:
 
-- **md new** (orange) / **sb new** (blue) — a card not in the stock list, shown
-  as `+N Card`.
-- **md count off** (purple) / **sb count off** (teal) — a stock card whose count
-  falls outside its stock range, shown as a signed delta `+/-N Card` (e.g. a
-  deck on 3 copies vs a stock 4 shows `-1 Card`). An absent stock card is just
-  count 0, so it folds in here as `-N Card`. The "ignore count deltas" toggle
-  hides this whole category.
+- **md added** (orange) / **sb added** (blue) — copies *above* the stock max,
+  shown as `+N Card`. Includes brand-new cards (expected 0) and overages of a
+  stock card (e.g. 2 Spell Snare vs a stock 1 → `+1 Spell Snare`).
+- **md removed** (purple) / **sb removed** (teal) — copies *below* the stock min,
+  shown as `-N Card`. Includes partial reductions (3 vs a stock 4 → `-1 Card`)
+  and full cuts (0 vs a stock 4 → `-4 Card`). The "ignore count deltas" toggle
+  keeps only brand-new cards and full cuts, hiding pure quantity changes.
 - **Fetchlands** (the classic 10 + Prismatic Vista / Fabled Passage) are
   bucketed into one virtual `Fetchland` so mana-base fetch swaps don't flag.
 - Hover any card name (chips, decklist panel, stock bar) for a Scryfall image.
