@@ -324,22 +324,32 @@ function renderDigest() {
   if (!DATA || !currentStock()) { host.style.display = "none"; host.innerHTML = ""; return; }
   const zones = [["main", "+", "addMain"], ["count", "-", "remMain"],
                  ["side", "+", "addSide"], ["scount", "-", "remSide"]];
-  const tally = new Map();
+  const MIN = 3;   // ignore any single card+delta seen in fewer than this many lists
+  const units = new Map();   // cls|name|magnitude -> lists doing that exact delta
   for (const deck of DATA.decks) {
     const d = diff(deck, false);
     if (!d) continue;
     for (const [cls, sign, field] of zones)
       for (const entry of d[field]) {
         if (entry[4]) continue;                       // skip in-range moves
-        const key = cls + "|" + entry[0];
         const mag = Math.abs(entry[1]);
-        const e = tally.get(key) ||
-          { cls, sign, name: entry[0], decks: 0, min: Infinity, max: 0 };
-        e.decks++;
-        e.min = Math.min(e.min, mag);
-        e.max = Math.max(e.max, mag);
-        tally.set(key, e);
+        const key = cls + "|" + entry[0] + "|" + mag;
+        const u = units.get(key) || { cls, sign, name: entry[0], mag, decks: 0 };
+        u.decks++;
+        units.set(key, u);
       }
+  }
+  // Drop rare single diffs, then fold the surviving deltas into a per-card range.
+  const tally = new Map();
+  for (const u of units.values()) {
+    if (u.decks < MIN) continue;
+    const key = u.cls + "|" + u.name;
+    const e = tally.get(key) ||
+      { cls: u.cls, sign: u.sign, name: u.name, decks: 0, min: Infinity, max: 0 };
+    e.decks += u.decks;
+    e.min = Math.min(e.min, u.mag);
+    e.max = Math.max(e.max, u.mag);
+    tally.set(key, e);
   }
   // Group in the same order as the columns; within each, most common first.
   const all = [...tally.values()];
