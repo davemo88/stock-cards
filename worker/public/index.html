@@ -58,6 +58,17 @@ li.deck.active { border-color:var(--accent); }
 .chip.misssb { color:var(--misssb); border-color:#274b46; background:#0f201d;
   text-decoration:line-through; }
 .chip.none { color:var(--dim); border-color:var(--line); }
+.diffcols { margin-top:8px; display:grid; grid-template-columns:repeat(5,1fr); gap:8px 10px; }
+.col { display:flex; flex-direction:column; gap:4px; align-items:flex-start; min-width:0; }
+.col .chip { max-width:100%; white-space:normal; }
+.colhead { font-size:9.5px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.05em; opacity:.85; }
+.colhead.main { color:var(--hot); } .colhead.count { color:var(--count); }
+.colhead.side { color:var(--side); } .colhead.missmd { color:var(--missmd); }
+.colhead.misssb { color:var(--misssb); }
+.col .empty { color:#39424c; }
+@media (max-width:1100px) { .diffcols { grid-template-columns:repeat(3,1fr); } }
+@media (max-width:640px) { .diffcols { grid-template-columns:repeat(2,1fr); } }
 aside { position:sticky; top:0; width:300px; flex:none; height:100vh;
   border-left:1px solid var(--line); padding:16px; overflow:auto; }
 aside .hint { color:var(--dim); font-size:12px; }
@@ -216,19 +227,30 @@ const deviationCount = (d) =>
 const esc = (s) => String(s).replace(/[&<>"']/g,
   (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 
-function chips(d) {
-  const out = [];
-  for (const [name, n] of d.newMain)
-    out.push(`<span class="chip main" title="not in stock maindeck">${n} ${esc(name)}</span>`);
-  for (const [name, n, r] of d.countMain)
-    out.push(`<span class="chip count" title="stock runs ${fmtRange(r)}">${n} ${esc(name)} <em>(stock ${fmtRange(r)})</em></span>`);
-  for (const [name, n] of d.newSide)
-    out.push(`<span class="chip side" title="not in stock sideboard">SB ${n} ${esc(name)}</span>`);
-  for (const [name, r] of d.missingMain)
-    out.push(`<span class="chip missmd" title="stock runs ${fmtRange(r)}, deck has 0">${esc(name)} <em>(stock ${fmtRange(r)})</em></span>`);
-  for (const name of d.missingSide)
-    out.push(`<span class="chip misssb" title="in stock sideboard, absent here">SB ${esc(name)}</span>`);
-  return out.length ? out.join("") : '<span class="chip none">stock list</span>';
+const cMain = ([name, n]) =>
+  `<span class="chip main" title="not in stock maindeck">${n} ${esc(name)}</span>`;
+const cCount = ([name, n, r]) =>
+  `<span class="chip count" title="stock runs ${fmtRange(r)}">${n} ${esc(name)} <em>(stock ${fmtRange(r)})</em></span>`;
+const cSide = ([name, n]) =>
+  `<span class="chip side" title="not in stock sideboard">SB ${n} ${esc(name)}</span>`;
+const cMissMd = ([name, r]) =>
+  `<span class="chip missmd" title="stock runs ${fmtRange(r)}, deck has 0">${esc(name)} <em>(${fmtRange(r)})</em></span>`;
+const cMissSb = (name) =>
+  `<span class="chip misssb" title="in stock sideboard, absent here">SB ${esc(name)}</span>`;
+
+// One column per category of difference.
+function diffCols(d) {
+  const cols = [
+    ["md new", "main", d.newMain.map(cMain)],
+    ["count off", "count", d.countMain.map(cCount)],
+    ["sb new", "side", d.newSide.map(cSide)],
+    ["md missing", "missmd", d.missingMain.map(cMissMd)],
+    ["sb missing", "misssb", d.missingSide.map(cMissSb)],
+  ];
+  return '<div class="diffcols">' + cols.map(([label, cls, arr]) =>
+    `<div class="col"><div class="colhead ${cls}">${label}</div>` +
+    (arr.length ? arr.join("") : '<span class="empty">·</span>') + "</div>"
+  ).join("") + "</div>";
 }
 
 function panelHtml(deck, unusual) {
@@ -298,8 +320,10 @@ function render() {
 
     const li = document.createElement("li");
     li.className = "deck";
-    const chipsHtml = d ? chips(d)
-      : '<span class="chip none">no stock list for this archetype</span>';
+    let diffHtml;
+    if (!d) diffHtml = '<div class="chips"><span class="chip none">no stock list for this archetype</span></div>';
+    else if (n === 0) diffHtml = '<div class="chips"><span class="chip none">stock list</span></div>';
+    else diffHtml = diffCols(d);
     const badgeHtml = hasStock
       ? `<span class="badge ${n === 0 ? "zero" : ""}">${n}</span>`
       : '<span class="badge zero">–</span>';
@@ -311,7 +335,7 @@ function render() {
         <span class="date">${esc(deck.date)}</span>
         ${badgeHtml}
       </div>
-      <div class="chips">${chipsHtml}</div>`;
+      ${diffHtml}`;
     li._html = panelHtml(deck, d ? d.unusual : new Set());
     li.addEventListener("mouseenter", () => { if (!pinned) showPanel(li); });
     li.addEventListener("click", () => { pinned = pinned === li ? null : li; showPanel(li); });
