@@ -61,11 +61,13 @@ all deltas are measured from) and an allowed **range**. Three forms:
 - `"10 (8-10)"` — nominal 10, allowed range 8–10.
 
 The nominals should sum to the real deck size (60 maindeck / 15 sideboard) so
-the columns balance. Ranges only widen what counts as "normal": a count inside
-the range still shows its delta (to keep the swap math complete) but isn't
-flagged. This is how a fetch trade surfaces — cut a Fiery Islet for a 3rd
-Mountain and the `-1 Fiery Islet` is balanced by `+1 Mountain`; run 9 fetches
-instead of 10 and `-1 Fetchland` shows without inflating the badge.
+the columns balance. Ranges widen what counts as "normal": an in-range delta is
+never flagged (no badge), and it is **only shown when it's needed to balance the
+notable diffs**. Concretely, per zone the app keeps the smallest set of in-range
+chips that covers the out-of-range residual and drops the rest — so a
+self-canceling mana shuffle (`+1 Mountain`, `+1 Steam Vents`, `-2 Fetchland`)
+disappears when the real diffs already balance, but a `-1 Consign to Memory`
+that makes room for a `+2 Tormod's Crypt` still shows.
 
 ## Archetypes
 

@@ -135,7 +135,7 @@ const STOCKS = {
     main: {
       "Thundering Falls":1, "Slickshot Show-Off":4, "Violent Urge":2,
       "Cori-Steel Cutter":4, "Mishra's Bauble":4, "Lightning Bolt":4,
-      "Preordain":4, "Mutagenic Growth":4, "Steam Vents":3, "Monastery Swiftspear":4,
+      "Preordain":4, "Mutagenic Growth":4, "Steam Vents":"3 (3-4)", "Monastery Swiftspear":4,
       "Lava Dart":4, "Fiery Islet":2, "Mountain":"2 (2-3)",
       "Expressive Iteration":4, "Dragon's Rage Channeler":4,
       // All fetchlands bucket under the "Fetchland" key. Nominal 10, allowed 8-10:
@@ -229,11 +229,41 @@ function diff(deck, ignoreCounts) {
   };
   compare(main, stockMainB, addMain, remMain);
   compare(side, stockSideB, addSide, remSide);
+  // In-range moves only exist to balance the notable (out-of-range) diffs. Keep
+  // the smallest subset of them that covers the out-of-range residual and drop
+  // the rest, so a self-canceling shuffle (e.g. +1 Mountain / -1 Fetchland when
+  // the real diffs already balance) doesn't show.
+  balanceInRange(addMain, remMain);
+  balanceInRange(addSide, remSide);
 
   const unusual = new Set(
     [...addMain, ...remMain, ...addSide, ...remSide]
       .filter((x) => !x[4]).map((x) => x[0]));
   return { addMain, remMain, addSide, remSide, unusual };
+}
+
+// Keep the fewest in-range chips summing to -(out-of-range residual); drop the
+// rest. The full in-range set always sums to that target for a fixed-size deck,
+// so a valid subset exists; ties break toward fewer chips then smaller total.
+function balanceInRange(addArr, remArr) {
+  const both = [...addArr, ...remArr];
+  const outSum = both.filter((x) => !x[4]).reduce((s, x) => s + x[1], 0);
+  const inRange = both.filter((x) => x[4]);
+  if (!inRange.length) return;
+  const target = -outSum, n = inRange.length;
+  let best = null;
+  const limit = n > 18 ? 0 : 1 << n;           // safety cap; otherwise keep all
+  for (let mask = 0; mask < limit; mask++) {
+    let sum = 0, cnt = 0, mag = 0;
+    for (let i = 0; i < n; i++)
+      if (mask & (1 << i)) { sum += inRange[i][1]; cnt++; mag += Math.abs(inRange[i][1]); }
+    if (sum === target && (!best || cnt < best.cnt || (cnt === best.cnt && mag < best.mag)))
+      best = { mask, cnt, mag };
+  }
+  const keep = new Set(best ? inRange.filter((_, i) => best.mask & (1 << i)) : inRange);
+  for (const arr of [addArr, remArr])
+    for (let i = arr.length - 1; i >= 0; i--)
+      if (arr[i][4] && !keep.has(arr[i])) arr.splice(i, 1);
 }
 const notable = (a) => a.filter((x) => !x[4]).length;  // in-range moves don't count
 const deviationCount = (d) =>
