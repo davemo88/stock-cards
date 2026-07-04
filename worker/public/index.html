@@ -6,7 +6,7 @@
 :root {
   --bg:#0f1216; --card:#171c22; --line:#252c34; --ink:#e6e9ee; --dim:#8b95a1;
   --hot:#ffb454; --side:#6cc4ff; --count:#c9a3ff; --accent:#ff6b6b;
-  --missmd:#f2777a; --misssb:#58b3a6;
+  --misssb:#58b3a6;
 }
 * { box-sizing:border-box; }
 body { margin:0; background:var(--bg); color:var(--ink);
@@ -53,13 +53,11 @@ li.deck.active { border-color:var(--accent); }
 .chip.main { color:var(--hot); border-color:#5a4626; background:#241d10; }
 .chip.count { color:var(--count); border-color:#42355c; background:#1e1826; }
 .chip.side { color:var(--side); border-color:#2a4a63; background:#111f2a; }
-.chip.missmd { color:var(--missmd); border-color:#5c2b30; background:#241416;
-  text-decoration:line-through; }
-.chip.misssb { color:var(--misssb); border-color:#274b46; background:#0f201d;
-  text-decoration:line-through; }
+.chip.scount { color:var(--misssb); border-color:#274b46; background:#0f201d; }
 .chip.none { color:var(--dim); border-color:var(--line); }
-.diffcols { margin-top:8px; display:grid; grid-template-columns:repeat(5,1fr); gap:8px 10px; }
+.diffcols { margin-top:8px; display:grid; grid-template-columns:repeat(4,1fr); gap:8px 10px; }
 .col { display:flex; flex-direction:column; gap:4px; align-items:flex-start; min-width:0; }
+.col.divide { border-left:1px solid var(--line); padding-left:11px; }
 .col .chip { max-width:100%; white-space:normal; }
 .col .empty { color:#39424c; }
 @media (max-width:1100px) { .diffcols { grid-template-columns:repeat(3,1fr); } }
@@ -89,10 +87,9 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
   <div class="sub"><span id="meta">loading…</span> ·
     hover a deck for the full list · fetchlands bucketed ·
     <span style="color:var(--hot)">md new</span> /
-    <span style="color:var(--count)">count off</span> /
-    <span style="color:var(--missmd)">md missing</span> /
+    <span style="color:var(--count)">md count off</span> /
     <span style="color:var(--side)">sb new</span> /
-    <span style="color:var(--misssb)">sb missing</span></div>
+    <span style="color:var(--misssb)">sb count off</span></div>
 </header>
 <div class="stockbar" id="stockbar"></div>
 <div class="controls">
@@ -139,11 +136,13 @@ const STOCKS = {
       // whole bucket a range rather than listing each fetch:
       "Fetchland":"8-10",
     },
-    side: ["Meltdown","Consign to Memory","Spell Snare","Unholy Heat",
-           "Spell Pierce","Assault Strobe","Murktide Regent"],
+    side: {
+      "Meltdown":2, "Consign to Memory":4, "Spell Snare":1, "Unholy Heat":4,
+      "Spell Pierce":2, "Assault Strobe":1, "Murktide Regent":1,
+    },
   },
-  // Add more here, e.g.:
-  // "modern-boros-energy": { main: { "Ocelot Pride":4, "Mountain":"1-2", ... }, side: [...] },
+  // Add more here. side takes counts/ranges just like main, e.g.:
+  // "modern-boros-energy": { main: { "Ocelot Pride":4, ... }, side: { "Wear // Tear":"1-2", ... } },
 };
 
 const FETCHLANDS = new Set([
@@ -193,34 +192,34 @@ function diff(deck, ignoreCounts) {
   const stock = currentStock();
   if (!stock) return null;
   const stockMainB = bucketStock(stock.main);
-  const stockSide = new Set(stock.side);
-  const main = bucket(deck.main), side = deck.side;
+  const stockSideB = bucketStock(stock.side);
+  const main = bucket(deck.main), side = bucket(deck.side);
 
-  const newMain = [], countMain = [], missingMain = [], missingSide = [];
-  for (const name of Object.keys(main).sort()) {
-    const n = main[name];
-    if (!(name in stockMainB)) { newMain.push([name, n]); continue; }
-    const r = stockMainB[name];
-    if ((n < r.min || n > r.max) && !ignoreCounts) countMain.push([name, n, r]);
-  }
-  for (const name of Object.keys(stockMainB).sort())
-    if (!(name in main) && stockMainB[name].min > 0)
-      missingMain.push([name, stockMainB[name]]);
-  const newSide = Object.keys(side).filter((n) => !stockSide.has(n)).sort()
-    .map((n) => [n, side[n]]);
-  for (const name of [...stockSide].sort())
-    if (!(name in side)) missingSide.push(name);
+  const newMain = [], countMain = [], newSide = [], countSide = [];
+  // Compare one zone: extras go to newArr, out-of-range (incl. absent = 0) to countArr.
+  const compare = (counts, stockB, newArr, countArr) => {
+    for (const name of Object.keys(counts).sort()) {
+      const n = counts[name];
+      if (!(name in stockB)) { newArr.push([name, n]); continue; }
+      const r = stockB[name];
+      if ((n < r.min || n > r.max) && !ignoreCounts) countArr.push([name, n, r]);
+    }
+    if (!ignoreCounts)
+      for (const name of Object.keys(stockB).sort())
+        if (!(name in counts) && stockB[name].min > 0)
+          countArr.push([name, 0, stockB[name]]);
+  };
+  compare(main, stockMainB, newMain, countMain);
+  compare(side, stockSideB, newSide, countSide);
 
   const unusual = new Set([
-    ...newMain.map((x) => x[0]),
-    ...countMain.map((x) => x[0]),
-    ...newSide.map((x) => x[0]),
+    ...newMain.map((x) => x[0]), ...countMain.map((x) => x[0]),
+    ...newSide.map((x) => x[0]), ...countSide.map((x) => x[0]),
   ]);
-  return { newMain, countMain, missingMain, newSide, missingSide, unusual };
+  return { newMain, countMain, newSide, countSide, unusual };
 }
 const deviationCount = (d) =>
-  d.newMain.length + d.countMain.length + d.newSide.length +
-  d.missingMain.length + d.missingSide.length;
+  d.newMain.length + d.countMain.length + d.newSide.length + d.countSide.length;
 
 // ------- rendering ----------------------------------------------------------
 const esc = (s) => String(s).replace(/[&<>"']/g,
@@ -228,28 +227,23 @@ const esc = (s) => String(s).replace(/[&<>"']/g,
 // data-card attr for a Scryfall hover preview (skip the synthetic Fetchland bucket)
 const dc = (name) => (name === FETCH_BUCKET ? "" : ` data-card="${esc(name)}"`);
 
-const cMain = ([name, n]) =>
-  `<span class="chip main"${dc(name)} title="not in stock maindeck">${n} ${esc(name)}</span>`;
-const cCount = ([name, n, r]) =>
-  `<span class="chip count"${dc(name)} title="stock runs ${fmtRange(r)}">${n} ${esc(name)} <em>(stock ${fmtRange(r)})</em></span>`;
-const cSide = ([name, n]) =>
-  `<span class="chip side"${dc(name)} title="not in stock sideboard">SB ${n} ${esc(name)}</span>`;
-const cMissMd = ([name, r]) =>
-  `<span class="chip missmd"${dc(name)} title="stock runs ${fmtRange(r)}, deck has 0">${esc(name)} <em>(${fmtRange(r)})</em></span>`;
-const cMissSb = (name) =>
-  `<span class="chip misssb"${dc(name)} title="in stock sideboard, absent here">SB ${esc(name)}</span>`;
+// Signed distance of a count from its stock range (0 vs 2-3 -> "-2", 4 vs 2-3 -> "+1").
+const sgn = (n, r) => { const dlt = n > r.max ? n - r.max : n - r.min; return (dlt > 0 ? "+" : "") + dlt; };
+const cNew = (cls) => ([name, n]) =>
+  `<span class="chip ${cls}"${dc(name)} title="not in stock">+${n} ${esc(name)}</span>`;
+const cCnt = (cls) => ([name, n, r]) =>
+  `<span class="chip ${cls}"${dc(name)} title="deck ${n}, stock ${fmtRange(r)}">${sgn(n, r)} ${esc(name)}</span>`;
 
-// One column per category of difference.
+// One column per category of difference (maindeck pair | sideboard pair).
 function diffCols(d) {
   const cols = [
-    d.newMain.map(cMain),      // md new
-    d.countMain.map(cCount),   // count off
-    d.missingMain.map(cMissMd),// md missing
-    d.newSide.map(cSide),      // sb new
-    d.missingSide.map(cMissSb),// sb missing
+    ["", d.newMain.map(cNew("main"))],        // md new
+    ["", d.countMain.map(cCnt("count"))],     // md count off (incl. 0 = missing)
+    ["divide", d.newSide.map(cNew("side"))],  // sb new
+    ["", d.countSide.map(cCnt("scount"))],    // sb count off (incl. 0 = missing)
   ];
-  return '<div class="diffcols">' + cols.map((arr) =>
-    '<div class="col">' +
+  return '<div class="diffcols">' + cols.map(([cls, arr]) =>
+    `<div class="col ${cls}">` +
     (arr.length ? arr.join("") : '<span class="empty">·</span>') + "</div>"
   ).join("") + "</div>";
 }
@@ -299,8 +293,9 @@ function renderStockbar() {
   const b = bucketStock(stock.main);
   const md = Object.keys(b).sort()
     .map((n) => `<span class="stk"${dc(n)}>${fmtRange(b[n])} ${esc(n)}</span>`).join("");
-  const sb = stock.side.slice().sort()
-    .map((n) => `<span class="stk"${dc(n)}>${esc(n)}</span>`).join(" ");
+  const sbB = bucketStock(stock.side);
+  const sb = Object.keys(sbB).sort()
+    .map((n) => `<span class="stk"${dc(n)}>${fmtRange(sbB[n])} ${esc(n)}</span>`).join(" ");
   bar.innerHTML =
     `<strong style="color:var(--ink)">Stock&nbsp;MD:</strong> ${md}` +
     `<span>&nbsp;·&nbsp;<strong style="color:var(--ink)">SB:</strong></span> ${sb}`;
