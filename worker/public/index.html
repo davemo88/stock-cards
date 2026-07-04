@@ -77,8 +77,12 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
 .cardline { display:flex; gap:8px; padding:1px 0; }
 .cardline .qty { color:var(--dim); min-width:18px; text-align:right;
   font-variant-numeric:tabular-nums; }
-.cardline.hot .cname { color:var(--hot); font-weight:700; }
-.cardline.hot .qty { color:var(--hot); }
+.cardline.add-md .cname, .cardline.rem-md .cname,
+.cardline.add-sb .cname, .cardline.rem-sb .cname { font-weight:700; }
+.cardline.add-md .cname, .cardline.add-md .qty { color:var(--hot); }
+.cardline.rem-md .cname, .cardline.rem-md .qty { color:var(--count); }
+.cardline.add-sb .cname, .cardline.add-sb .qty { color:var(--side); }
+.cardline.rem-sb .cname, .cardline.rem-sb .qty { color:var(--misssb); }
 #status { padding:40px 24px; color:var(--dim); }
 [data-card] { cursor:help; }
 #cardpop { position:fixed; z-index:1000; display:none; pointer-events:none; }
@@ -236,10 +240,7 @@ function diff(deck, ignoreCounts) {
   balanceInRange(addMain, remMain);
   balanceInRange(addSide, remSide);
 
-  const unusual = new Set(
-    [...addMain, ...remMain, ...addSide, ...remSide]
-      .filter((x) => !x[4]).map((x) => x[0]));
-  return { addMain, remMain, addSide, remSide, unusual };
+  return { addMain, remMain, addSide, remSide };
 }
 
 // Keep the fewest in-range chips summing to -(out-of-range residual); drop the
@@ -295,17 +296,20 @@ function diffCols(d) {
   ).join("") + "</div>";
 }
 
-function panelHtml(deck, unusual) {
-  const section = (title, counts) => {
+function panelHtml(deck, d) {
+  const map = (arr, cls) => Object.fromEntries(arr.map((e) => [e[0], cls]));
+  const mdMap = d ? { ...map(d.addMain, "add-md"), ...map(d.remMain, "rem-md") } : {};
+  const sbMap = d ? { ...map(d.addSide, "add-sb"), ...map(d.remSide, "rem-sb") } : {};
+  const section = (title, counts, hl) => {
     const rows = Object.keys(counts).sort().map((name) => {
-      const hot = unusual.has(name) ? " hot" : "";
-      return `<div class="cardline${hot}"><span class="qty">${counts[name]}</span>` +
+      const cls = hl[name] ? " " + hl[name] : "";
+      return `<div class="cardline${cls}"><span class="qty">${counts[name]}</span>` +
         `<span class="cname"${dc(name)}>${esc(name)}</span></div>`;
     }).join("");
     const total = Object.values(counts).reduce((a, b) => a + b, 0);
     return `<div class="secttl">${title} (${total})</div>${rows}`;
   };
-  return section("Maindeck", deck.main) + section("Sideboard", deck.side);
+  return section("Maindeck", deck.main, mdMap) + section("Sideboard", deck.side, sbMap);
 }
 
 // ------- app ----------------------------------------------------------------
@@ -428,7 +432,7 @@ function render() {
         ${badgeHtml}
       </div>
       ${diffHtml}`;
-    li._html = panelHtml(deck, d ? d.unusual : new Set());
+    li._html = panelHtml(deck, d);
     li.addEventListener("mouseenter", () => { if (!pinned) showPanel(li); });
     li.addEventListener("click", () => { pinned = pinned === li ? null : li; showPanel(li); });
     list.appendChild(li);
