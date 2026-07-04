@@ -56,6 +56,14 @@ string**:
 - `"0-2"` — a flex slot: 0–2 copies are fine and its absence never flags.
 - Give the whole fetch bucket a range with a `"Fetchland": "8-10"` stock entry.
 
+Because a within-range move is invisible, a swap can leave the columns
+unbalanced (cut a Fiery Islet, add a 3rd Mountain within its `2-3` range → only
+the `-1` shows). To keep the picture complete, a within-range increase above the
+low end of its range is **revealed as a muted, dashed `rng` chip** in the added
+column, so the hidden half of the swap still appears and the columns reconcile.
+Muted reveals don't count toward the badge, and the `Fetchland` bucket is left
+quiet so the mana base doesn't generate noise.
+
 ## Archetypes
 
 The dropdown is driven by `ARCHETYPES` in `worker/public/index.html`; the Worker

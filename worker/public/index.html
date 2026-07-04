@@ -54,6 +54,7 @@ li.deck.active { border-color:var(--accent); }
 .chip.count { color:var(--count); border-color:#42355c; background:#1e1826; }
 .chip.side { color:var(--side); border-color:#2a4a63; background:#111f2a; }
 .chip.scount { color:var(--misssb); border-color:#274b46; background:#0f201d; }
+.chip.muted { opacity:.5; border-style:dashed; }
 .chip.none { color:var(--dim); border-color:var(--line); }
 .diffcols { margin-top:8px; display:grid; grid-template-columns:repeat(4,1fr); gap:8px 10px; }
 .col { display:flex; flex-direction:column; gap:4px; align-items:flex-start; min-width:0; }
@@ -196,19 +197,26 @@ function diff(deck, ignoreCounts) {
   const main = bucket(deck.main), side = bucket(deck.side);
 
   const addMain = [], remMain = [], addSide = [], remSide = [];
-  // Split every card's delta from its stock range by direction: copies above
-  // the max are additions; copies below the min (incl. a full cut to 0) are
-  // removals. Entries: [name, delta, deckCount, range].
+  // Classify each card's delta from its stock range. Entries are
+  // [name, delta, deckCount, range, muted]:
+  //  - above max      -> addition (bright)
+  //  - below min      -> removal (bright); a full cut to 0 counts here
+  //  - within range,  -> a "slack" move that would otherwise be invisible; reveal
+  //    above the low     it muted (from the low end) so a swap hidden by a range
+  //    end               still shows and the columns reconcile. The Fetchland
+  //                      bucket is left quiet on purpose (mana-base noise).
   const compare = (counts, stockB, addArr, remArr) => {
     const names = new Set([...Object.keys(counts), ...Object.keys(stockB)]);
     for (const name of [...names].sort()) {
       const n = counts[name] || 0;
       const r = stockB[name] || { min: 0, max: 0 };
       const inStock = name in stockB;
-      if (n > r.max) {                                  // added copies (incl. brand-new)
-        if (!ignoreCounts || !inStock) addArr.push([name, n - r.max, n, r]);
-      } else if (n < r.min) {                           // removed copies (incl. full cut)
-        if (!ignoreCounts || n === 0) remArr.push([name, n - r.min, n, r]);
+      if (n > r.max) {
+        if (!ignoreCounts || !inStock) addArr.push([name, n - r.max, n, r, false]);
+      } else if (n < r.min) {
+        if (!ignoreCounts || n === 0) remArr.push([name, n - r.min, n, r, false]);
+      } else if (n > r.min && name !== FETCH_BUCKET && !ignoreCounts) {
+        addArr.push([name, n - r.min, n, r, true]);   // within-range slack, revealed muted
       }
     }
   };
@@ -216,11 +224,13 @@ function diff(deck, ignoreCounts) {
   compare(side, stockSideB, addSide, remSide);
 
   const unusual = new Set(
-    [...addMain, ...remMain, ...addSide, ...remSide].map((x) => x[0]));
+    [...addMain, ...remMain, ...addSide, ...remSide]
+      .filter((x) => !x[4]).map((x) => x[0]));
   return { addMain, remMain, addSide, remSide, unusual };
 }
+const bright = (a) => a.filter((x) => !x[4]).length;   // muted reveals don't count
 const deviationCount = (d) =>
-  d.addMain.length + d.remMain.length + d.addSide.length + d.remSide.length;
+  bright(d.addMain) + bright(d.remMain) + bright(d.addSide) + bright(d.remSide);
 
 // ------- rendering ----------------------------------------------------------
 const esc = (s) => String(s).replace(/[&<>"']/g,
@@ -228,13 +238,15 @@ const esc = (s) => String(s).replace(/[&<>"']/g,
 // data-card attr for a Scryfall hover preview (skip the synthetic Fetchland bucket)
 const dc = (name) => (name === FETCH_BUCKET ? "" : ` data-card="${esc(name)}"`);
 
-// [name, delta, deckCount, range] -> a signed chip ("+1 Card" / "-2 Card").
-const chip = (cls) => ([name, delta, n, r]) =>
-  `<span class="chip ${cls}"${dc(name)} title="deck ${n}, stock ${fmtRange(r)}">${delta > 0 ? "+" : ""}${delta} ${esc(name)}</span>`;
+// [name, delta, deckCount, range, muted] -> a signed chip ("+1 Card" / "-2 Card").
+// Muted chips are within-range "slack" moves, dimmed and tagged "rng".
+const chip = (cls) => ([name, delta, n, r, muted]) =>
+  `<span class="chip ${cls}${muted ? " muted" : ""}"${dc(name)} title="deck ${n}, stock ${fmtRange(r)}${muted ? " — within range" : ""}">${delta > 0 ? "+" : ""}${delta} ${esc(name)}${muted ? ' <em>rng</em>' : ""}</span>`;
 
 // Columns: maindeck added | removed, divider, then sideboard added | removed.
-// Each column is sorted by delta magnitude, largest change first.
-const byMag = (arr) => arr.slice().sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+// Bright (out-of-range) chips first, then muted reveals; each group by magnitude.
+const byMag = (arr) => arr.slice().sort((a, b) =>
+  (Number(a[4]) - Number(b[4])) || (Math.abs(b[1]) - Math.abs(a[1])));
 function diffCols(d) {
   const cols = [
     ["", byMag(d.addMain).map(chip("main"))],       // md added
