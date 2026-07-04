@@ -78,6 +78,8 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
   text-transform:uppercase; letter-spacing:.05em; }
 .secttl { margin:12px 0 4px; font-weight:700; color:var(--side); font-size:12px;
   text-transform:uppercase; letter-spacing:.04em; }
+.typehdr { margin:8px 0 2px; font-weight:700; color:var(--dim); font-size:10px;
+  text-transform:uppercase; letter-spacing:.05em; }
 .cardline { display:flex; gap:8px; padding:1px 0; }
 .cardline .qty { color:var(--dim); min-width:18px; text-align:right;
   font-variant-numeric:tabular-nums; }
@@ -314,20 +316,44 @@ function manaSymbols(name) {
   return syms ? `<span class="mana">${syms}</span>` : "";
 }
 
+const TYPE_ORDER = ["Creature", "Planeswalker", "Instant", "Sorcery",
+  "Artifact", "Enchantment", "Battle", "Land", "Other"];
+const TYPE_LABEL = { Creature: "Creatures", Planeswalker: "Planeswalkers",
+  Instant: "Instants", Sorcery: "Sorceries", Artifact: "Artifacts",
+  Enchantment: "Enchantments", Battle: "Battles", Land: "Lands", Other: "Other" };
+
 function panelHtml(deck, d) {
   const map = (arr, cls) => Object.fromEntries(arr.map((e) => [e[0], cls]));
   const mdMap = d ? { ...map(d.addMain, "add-md"), ...map(d.remMain, "rem-md") } : {};
   const sbMap = d ? { ...map(d.addSide, "add-sb"), ...map(d.remSide, "rem-sb") } : {};
-  const section = (title, counts, hl) => {
-    const rows = Object.keys(counts).sort().map((name) => {
-      const cls = hl[name] ? " " + hl[name] : "";
-      return `<div class="cardline${cls}"><span class="qty">${counts[name]}</span>` +
-        `<span class="cname"${dc(name)}>${esc(name)}</span>${manaSymbols(name)}</div>`;
-    }).join("");
-    const total = Object.values(counts).reduce((a, b) => a + b, 0);
-    return `<div class="secttl">${title} (${total})</div>${rows}`;
+  const total = (counts) => Object.values(counts).reduce((a, b) => a + b, 0);
+  const line = (name, counts, hl) => {
+    const cls = hl[name] ? " " + hl[name] : "";
+    return `<div class="cardline${cls}"><span class="qty">${counts[name]}</span>` +
+      `<span class="cname"${dc(name)}>${esc(name)}</span>${manaSymbols(name)}</div>`;
   };
-  return section("Maindeck", deck.main, mdMap) + section("Sideboard", deck.side, sbMap);
+  const cmc = (n) => (DATA && DATA.cmc && DATA.cmc[n] != null) ? DATA.cmc[n] : 99;
+  const byCmc = (a, b) => cmc(a) - cmc(b) || a.localeCompare(b);
+  const flat = (title, counts, hl) =>
+    `<div class="secttl">${title} (${total(counts)})</div>` +
+    Object.keys(counts).sort(byCmc).map((n) => line(n, counts, hl)).join("");
+  const grouped = (title, counts, hl) => {
+    const byType = {};
+    for (const name of Object.keys(counts)) {
+      const t = (DATA && DATA.types && DATA.types[name]) || "Other";
+      (byType[t] = byType[t] || []).push(name);
+    }
+    let out = `<div class="secttl">${title} (${total(counts)})</div>`;
+    for (const t of TYPE_ORDER) {
+      const names = byType[t];
+      if (!names) continue;
+      const sub = names.reduce((a, n) => a + counts[n], 0);
+      out += `<div class="typehdr">${TYPE_LABEL[t]} (${sub})</div>` +
+        names.sort(byCmc).map((n) => line(n, counts, hl)).join("");
+    }
+    return out;
+  };
+  return grouped("Maindeck", deck.main, mdMap) + flat("Sideboard", deck.side, sbMap);
 }
 
 // ------- app ----------------------------------------------------------------

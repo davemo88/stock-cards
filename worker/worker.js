@@ -42,7 +42,7 @@ export default {
 
     // Edge cache keyed by archetype (ignore ?refresh in the key). Bump the
     // version when the payload shape changes so stale caches are skipped.
-    const cacheKey = new Request(`${url.origin}/decks?archetype=${slug}&v=2`, request);
+    const cacheKey = new Request(`${url.origin}/decks?archetype=${slug}&v=4`, request);
     const cache = caches.default;
     if (!refresh) {
       const hit = await cache.match(cacheKey);
@@ -100,17 +100,17 @@ async function scrape(slug) {
 
   const names = [...new Set(decks.flatMap((d) =>
     [...Object.keys(d.main), ...Object.keys(d.side)]))];
-  const mana = await fetchMana(names);
+  const { mana, types, cmc } = await fetchCards(names);
 
   return {
     generated: new Date().toISOString(), archetype: slug,
-    count: decks.length, decks, mana,
+    count: decks.length, decks, mana, types, cmc,
   };
 }
 
-// name -> mana_cost string ("{1}{U}{R}") via Scryfall's bulk collection API.
-async function fetchMana(names) {
-  const mana = {};
+// name -> { mana_cost, primary type, cmc } via Scryfall's bulk collection API.
+async function fetchCards(names) {
+  const mana = {}, types = {}, cmc = {};
   for (let i = 0; i < names.length; i += 75) {
     const identifiers = names.slice(i, i + 75).map((name) => ({ name }));
     try {
@@ -122,12 +122,28 @@ async function fetchMana(names) {
       if (!r.ok) continue;
       const j = await r.json();
       for (const c of j.data || []) {
-        const mc = c.mana_cost || (c.card_faces && c.card_faces[0] && c.card_faces[0].mana_cost) || "";
+        const face = c.card_faces && c.card_faces[0];
+        const mc = c.mana_cost || (face && face.mana_cost) || "";
         if (mc) mana[c.name] = mc;
+        types[c.name] = category(c.type_line || (face && face.type_line) || "");
+        cmc[c.name] = typeof c.cmc === "number" ? c.cmc : 0;
       }
-    } catch (_) { /* leave those cards without symbols */ }
+    } catch (_) { /* leave those cards without symbols/types */ }
   }
-  return mana;
+  return { mana, types, cmc };
+}
+
+function category(typeLine) {
+  const t = typeLine.split("//")[0];
+  if (/\bLand\b/.test(t)) return "Land";
+  if (/\bCreature\b/.test(t)) return "Creature";
+  if (/\bPlaneswalker\b/.test(t)) return "Planeswalker";
+  if (/\bInstant\b/.test(t)) return "Instant";
+  if (/\bSorcery\b/.test(t)) return "Sorcery";
+  if (/\bArtifact\b/.test(t)) return "Artifact";
+  if (/\bEnchantment\b/.test(t)) return "Enchantment";
+  if (/\bBattle\b/.test(t)) return "Battle";
+  return "Other";
 }
 
 async function fetchText(target) {
