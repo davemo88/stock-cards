@@ -73,12 +73,30 @@ li.deck.active { border-color:var(--accent); }
 .player a:hover { text-decoration:underline; }
 .tourney { color:var(--dim); }
 .date { color:var(--dim); font-variant-numeric:tabular-nums; margin-left:auto; }
-.badge { position:absolute; right:12px; bottom:10px; background:#1c2229;
-  border:1px solid var(--line); color:var(--dim); font-weight:700;
-  border-radius:20px; text-align:center; padding:1px 9px; font-size:12px;
-  font-variant-numeric:tabular-nums; }
+.deckactions { position:absolute; right:12px; bottom:10px; display:flex; gap:6px;
+  align-items:center; }
+.handbtn { background:#1c2229; border:1px solid var(--line); border-radius:20px;
+  padding:1px 8px; font-size:12px; line-height:1.5; cursor:pointer; }
+.handbtn:hover { border-color:#3a4552; }
+.badge { background:#1c2229; border:1px solid var(--line); color:var(--dim);
+  font-weight:700; border-radius:20px; text-align:center; padding:1px 9px;
+  font-size:12px; font-variant-numeric:tabular-nums; }
 .badge b { font-weight:700; }
 .badge.zero { background:#2b333c; color:var(--dim); border-color:transparent; }
+#handpanel { position:fixed; left:0; right:0; bottom:0; z-index:1500;
+  background:#0d1116; border-top:1px solid var(--line); padding:12px 16px 14px;
+  box-shadow:0 -10px 34px rgba(0,0,0,.55); }
+.hand-head { display:flex; align-items:center; gap:12px; margin-bottom:10px;
+  font-size:13px; color:var(--dim); }
+.hand-head strong { color:var(--ink); }
+.hand-head .spacer { margin-left:auto; }
+.hand-head button { background:#1c2229; border:1px solid var(--line); color:var(--ink);
+  border-radius:6px; padding:3px 11px; cursor:pointer; font:inherit; font-size:12px; }
+.hand-head button:hover { border-color:#3a4552; }
+.hand-cards { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+.hand-cards img { height:190px; border-radius:9px; background:#0a0c0f;
+  box-shadow:0 4px 14px rgba(0,0,0,.5); }
+body.hand-open { padding-bottom:250px; }
 .chips { margin-top:7px; display:flex; flex-wrap:wrap; gap:5px; }
 .chip { font-size:12px; border-radius:5px; padding:2px 7px; border:1px solid; }
 .chip em { font-style:normal; opacity:.7; }
@@ -170,6 +188,15 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
   </div></aside>
 </div>
 <div id="status" style="display:none"></div>
+<div id="handpanel" hidden>
+  <div class="hand-head">
+    <span id="hand-title"></span>
+    <span class="spacer"></span>
+    <button id="hand-redraw">↻ redraw</button>
+    <button id="hand-close">✕ close</button>
+  </div>
+  <div class="hand-cards" id="hand-cards"></div>
+</div>
 
 <script>
 // ------- config -------------------------------------------------------------
@@ -560,10 +587,14 @@ function render() {
         <span class="date">${esc(deck.date)}</span>
       </div>
       ${diffHtml}
-      ${badgeHtml}`;
+      <div class="deckactions">
+        <button class="handbtn" title="Draw a random 7-card hand">🖐</button>
+        ${badgeHtml}
+      </div>`;
     li._html = panelHtml(deck, d);
     li.addEventListener("mouseenter", () => { if (!pinned) showPanel(li); });
     li.addEventListener("click", () => { pinned = pinned === li ? null : li; showPanel(li); });
+    li.querySelector(".handbtn").addEventListener("click", (e) => { e.stopPropagation(); showHand(deck); });
     list.appendChild(li);
   }
   el("meta").textContent = `${shown} of ${DATA.count} decklists`;
@@ -573,6 +604,43 @@ function showPanel(li) {
   body.innerHTML = li._html;
   document.querySelectorAll("li.deck.active").forEach((e) => e.classList.remove("active"));
   li.classList.add("active");
+}
+
+// ------- draw a hand --------------------------------------------------------
+let handDeck = null;
+function drawHand(deck) {
+  const pool = [];
+  for (const [name, n] of Object.entries(deck.main)) for (let i = 0; i < n; i++) pool.push(name);
+  for (let i = pool.length - 1; i > 0; i--) {          // Fisher–Yates shuffle
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, 7);
+}
+function renderHand() {
+  if (!handDeck) return;
+  const host = el("hand-cards");
+  host.innerHTML = "";
+  for (const name of drawHand(handDeck)) {
+    const img = document.createElement("img");
+    img.alt = name;
+    img.title = name;
+    img.onerror = () => { img.onerror = null; img.src = scry("fuzzy", name); };
+    img.src = scry("exact", name);
+    host.appendChild(img);
+  }
+}
+function showHand(deck) {
+  handDeck = deck;
+  el("hand-title").innerHTML =
+    `<strong>${esc(deck.player)}</strong> — ${esc(deck.tourney)} · random opening hand`;
+  renderHand();
+  el("handpanel").hidden = false;
+  document.body.classList.add("hand-open");
+}
+function closeHand() {
+  el("handpanel").hidden = true;
+  document.body.classList.remove("hand-open");
 }
 
 async function load(refresh) {
@@ -643,6 +711,8 @@ document.addEventListener("mouseout", (e) => {
 initStockEditor();
 renderStockbar();
 el("refresh").addEventListener("click", () => load(true));
+el("hand-redraw").addEventListener("click", renderHand);
+el("hand-close").addEventListener("click", closeHand);
 load(false);
 </script>
 </body></html>
