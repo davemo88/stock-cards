@@ -112,8 +112,6 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
 <div class="stockbar" id="stockbar"></div>
 <div class="controls">
   <label>archetype <select id="archetype"></select></label>
-  <label><input type="checkbox" id="hideStock"> hide stock-identical lists</label>
-  <label><input type="checkbox" id="ignoreCounts"> hide in-range moves</label>
   <button id="refresh">↻ refresh</button>
   <span id="freshness"></span>
 </div>
@@ -446,18 +444,15 @@ function renderDigest() {
 
 function render() {
   if (!DATA) return;
-  const hideStock = el("hideStock").checked;
-  const ignoreCounts = el("ignoreCounts").checked;
   const hasStock = !!currentStock();
   const list = el("decks");
   list.innerHTML = "";
   let shown = 0;
   for (const deck of DATA.decks) {
-    const d = hasStock ? diff(deck, ignoreCounts) : null;
+    const d = hasStock ? diff(deck, false) : null;
     const md = d ? addSum(d.addMain) : 0;
     const sb = d ? addSum(d.addSide) : 0;
     const n = md + sb;
-    if (hideStock && hasStock && n === 0) continue;
     shown++;
 
     const li = document.createElement("li");
@@ -561,8 +556,6 @@ document.addEventListener("mouseout", (e) => {
 
 initArchetypes();
 renderStockbar();
-el("hideStock").addEventListener("change", render);
-el("ignoreCounts").addEventListener("change", render);
 el("refresh").addEventListener("click", () => load(true));
 load(false);
 </script>
