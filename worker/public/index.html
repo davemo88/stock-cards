@@ -31,6 +31,10 @@ header .sub a { color:var(--side); }
   font:inherit; }
 .controls select:hover, .controls button:hover { border-color:#3a4552; }
 .controls button:disabled { opacity:.5; cursor:default; }
+.digest { padding:10px 24px; border-bottom:1px solid var(--line); display:flex;
+  flex-wrap:wrap; gap:6px; align-items:center; font-size:12px; }
+.digest strong { color:var(--dim); margin-right:2px; }
+.digest .chip b { font-variant-numeric:tabular-nums; margin-right:2px; }
 .layout { display:flex; align-items:flex-start; }
 ul.decks { list-style:none; margin:0; padding:14px 24px; flex:1; min-width:0; }
 li.deck { background:var(--card); border:1px solid var(--line); border-radius:8px;
@@ -99,6 +103,7 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
   <button id="refresh">↻ refresh</button>
   <span id="freshness"></span>
 </div>
+<div class="digest" id="digest"></div>
 <div class="layout">
   <ul class="decks" id="decks"></ul>
   <aside id="panel"><h2>Decklist</h2><div id="panelbody">
@@ -312,6 +317,35 @@ function renderStockbar() {
     `<span>&nbsp;·&nbsp;<strong style="color:var(--ink)">SB:</strong></span> ${sb}`;
 }
 
+// Aggregate the notable (out-of-range) deviations across every list.
+function renderDigest() {
+  const host = el("digest");
+  if (!DATA || !currentStock()) { host.style.display = "none"; host.innerHTML = ""; return; }
+  const zones = [["main", "+", "addMain"], ["count", "-", "remMain"],
+                 ["side", "+", "addSide"], ["scount", "-", "remSide"]];
+  const tally = new Map();
+  for (const deck of DATA.decks) {
+    const d = diff(deck, false);
+    if (!d) continue;
+    for (const [cls, sign, field] of zones)
+      for (const entry of d[field]) {
+        if (entry[4]) continue;                       // skip in-range moves
+        const key = cls + "|" + entry[0];
+        const e = tally.get(key) || { cls, sign, name: entry[0], decks: 0 };
+        e.decks++;
+        tally.set(key, e);
+      }
+  }
+  const top = [...tally.values()]
+    .sort((a, b) => b.decks - a.decks || a.name.localeCompare(b.name))
+    .slice(0, 14);
+  if (!top.length) { host.style.display = "none"; host.innerHTML = ""; return; }
+  host.style.display = "flex";
+  host.innerHTML = `<strong>Most common deviations (of ${DATA.count} lists):</strong>` +
+    top.map((e) => `<span class="chip ${e.cls}"${dc(e.name)} title="${e.decks} of ${DATA.count} lists">` +
+      `<b>${e.decks}×</b>${e.sign}${esc(e.name)}</span>`).join("");
+}
+
 function render() {
   if (!DATA) return;
   const hideStock = el("hideStock").checked;
@@ -370,6 +404,7 @@ async function load(refresh) {
     DATA = await r.json();
     el("status").style.display = "none";
     el("freshness").textContent = "data as of " + new Date(DATA.generated).toLocaleString();
+    renderDigest();
     render();
   } catch (err) {
     el("status").textContent = "Failed to load: " + err.message +
