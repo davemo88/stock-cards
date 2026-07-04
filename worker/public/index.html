@@ -90,8 +90,8 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
     hover a deck for the full list · fetchlands bucketed ·
     <span style="color:var(--hot)">md new</span> /
     <span style="color:var(--count)">count off</span> /
-    <span style="color:var(--side)">sb new</span> /
     <span style="color:var(--missmd)">md missing</span> /
+    <span style="color:var(--side)">sb new</span> /
     <span style="color:var(--misssb)">sb missing</span></div>
 </header>
 <div class="stockbar" id="stockbar"></div>
@@ -242,11 +242,11 @@ const cMissSb = (name) =>
 // One column per category of difference.
 function diffCols(d) {
   const cols = [
-    d.newMain.map(cMain),
-    d.countMain.map(cCount),
-    d.newSide.map(cSide),
-    d.missingMain.map(cMissMd),
-    d.missingSide.map(cMissSb),
+    d.newMain.map(cMain),      // md new
+    d.countMain.map(cCount),   // count off
+    d.missingMain.map(cMissMd),// md missing
+    d.newSide.map(cSide),      // sb new
+    d.missingSide.map(cMissSb),// sb missing
   ];
   return '<div class="diffcols">' + cols.map((arr) =>
     '<div class="col">' +
