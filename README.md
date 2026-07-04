@@ -32,23 +32,29 @@ index.html  ◄── diffs each deck vs the stock list in the browser ───
 
 ## Comparison rules
 
-Each chip is colour-coded:
+The maindeck and sideboard are compared identically, and each deck's
+differences are laid out in four columns — the maindeck pair, a divider, then
+the sideboard pair:
 
-- **md new** (orange) — maindeck card absent from the stock list.
-- **count off** (purple) — maindeck card whose count falls outside the stock
-  range. The "ignore count deltas" toggle hides these.
-- **sb new** (blue) — sideboard card not in the stock sideboard.
-- **md missing** / **sb missing** (struck-through rose / teal) — a stock card
-  absent from this deck.
+- **md new** (orange) / **sb new** (blue) — a card not in the stock list, shown
+  as `+N Card`.
+- **md count off** (purple) / **sb count off** (teal) — a stock card whose count
+  falls outside its stock range, shown as a signed delta `+/-N Card` (e.g. a
+  deck on 3 copies vs a stock 4 shows `-1 Card`). An absent stock card is just
+  count 0, so it folds in here as `-N Card`. The "ignore count deltas" toggle
+  hides this whole category.
 - **Fetchlands** (the classic 10 + Prismatic Vista / Fabled Passage) are
   bucketed into one virtual `Fetchland` so mana-base fetch swaps don't flag.
+- Hover any card name (chips, decklist panel, stock bar) for a Scryfall image.
 
 ### Ranges
 
-A stock maindeck count may be a number (`4`) or a **range string**:
+A stock count (maindeck *or* sideboard) may be a number (`4`) or a **range
+string**:
 
 - `"2-3"` — only flags when the deck runs fewer than 2 or more than 3.
-- `"0-2"` — a flex slot: 0–2 copies are fine and its absence is never "missing".
+- `"0-2"` — a flex slot: 0–2 copies are fine and its absence never flags.
+- Give the whole fetch bucket a range with a `"Fetchland": "8-10"` stock entry.
 
 ## Archetypes
 
