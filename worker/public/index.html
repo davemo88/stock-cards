@@ -34,7 +34,8 @@ header .sub a { color:var(--side); }
 .digest { padding:10px 24px; border-bottom:1px solid var(--line); display:flex;
   flex-wrap:wrap; gap:6px; align-items:center; font-size:12px; }
 .digest strong { color:var(--dim); margin-right:2px; }
-.digest .chip b { font-variant-numeric:tabular-nums; margin-right:2px; }
+.digest .chip b { font-variant-numeric:tabular-nums; margin-right:3px; }
+.digest .chip .dcount { opacity:.6; }
 .layout { display:flex; align-items:flex-start; }
 ul.decks { list-style:none; margin:0; padding:14px 24px; flex:1; min-width:0; }
 li.deck { background:var(--card); border:1px solid var(--line); border-radius:8px;
@@ -331,19 +332,28 @@ function renderDigest() {
       for (const entry of d[field]) {
         if (entry[4]) continue;                       // skip in-range moves
         const key = cls + "|" + entry[0];
-        const e = tally.get(key) || { cls, sign, name: entry[0], decks: 0 };
+        const mag = Math.abs(entry[1]);
+        const e = tally.get(key) ||
+          { cls, sign, name: entry[0], decks: 0, min: Infinity, max: 0 };
         e.decks++;
+        e.min = Math.min(e.min, mag);
+        e.max = Math.max(e.max, mag);
         tally.set(key, e);
       }
   }
-  const top = [...tally.values()]
-    .sort((a, b) => b.decks - a.decks || a.name.localeCompare(b.name))
-    .slice(0, 14);
+  // Group in the same order as the columns; within each, most common first.
+  const all = [...tally.values()];
+  const top = [];
+  for (const [cls] of zones)
+    top.push(...all.filter((e) => e.cls === cls)
+      .sort((a, b) => b.decks - a.decks || a.name.localeCompare(b.name))
+      .slice(0, 8));
   if (!top.length) { host.style.display = "none"; host.innerHTML = ""; return; }
   host.style.display = "flex";
+  const range = (e) => e.sign + (e.min === e.max ? e.min : `${e.min}-${e.max}`);
   host.innerHTML = `<strong>Most common deviations (of ${DATA.count} lists):</strong>` +
     top.map((e) => `<span class="chip ${e.cls}"${dc(e.name)} title="${e.decks} of ${DATA.count} lists">` +
-      `<b>${e.decks}×</b>${e.sign}${esc(e.name)}</span>`).join("");
+      `<b>${range(e)}</b> ${esc(e.name)} <span class="dcount">(${e.decks})</span></span>`).join("");
 }
 
 function render() {
