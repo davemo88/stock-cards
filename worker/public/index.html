@@ -44,12 +44,12 @@ li.deck { position:relative; background:var(--card); border:1px solid var(--line
 li.deck:hover { border-color:#3a4552; }
 li.deck.active { border-color:var(--accent); }
 .row { display:flex; gap:12px; align-items:baseline; flex-wrap:wrap; }
-.place { font-weight:700; min-width:44px; color:var(--dim); }
-.player { font-weight:600; min-width:150px; }
+.place { font-weight:700; min-width:44px; color:var(--ink); }
+.player { font-weight:600; }
 .player a { text-decoration:none; }
 .player a:hover { text-decoration:underline; }
-.tourney { color:var(--dim); flex:1; min-width:150px; }
-.date { color:var(--dim); font-variant-numeric:tabular-nums; }
+.tourney { color:var(--dim); }
+.date { color:var(--dim); font-variant-numeric:tabular-nums; margin-left:auto; }
 .badge { position:absolute; right:12px; bottom:10px; background:#1c2229;
   border:1px solid var(--line); color:var(--dim); font-weight:700;
   border-radius:20px; text-align:center; padding:1px 9px; font-size:12px;
@@ -435,8 +435,8 @@ function render() {
     li.innerHTML =
       `<div class="row">
         <span class="place">${esc(deck.place)}</span>
-        <span class="player"><a href="${esc(deck.url)}" target="_blank" rel="noopener">${esc(deck.player)}</a></span>
         <span class="tourney">${esc(deck.tourney)}</span>
+        <span class="player"><a href="${esc(deck.url)}" target="_blank" rel="noopener">${esc(deck.player)}</a></span>
         <span class="date">${esc(deck.date)}</span>
       </div>
       ${diffHtml}
