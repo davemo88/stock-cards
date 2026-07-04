@@ -61,11 +61,6 @@ li.deck.active { border-color:var(--accent); }
 .diffcols { margin-top:8px; display:grid; grid-template-columns:repeat(5,1fr); gap:8px 10px; }
 .col { display:flex; flex-direction:column; gap:4px; align-items:flex-start; min-width:0; }
 .col .chip { max-width:100%; white-space:normal; }
-.colhead { font-size:9.5px; font-weight:700; text-transform:uppercase;
-  letter-spacing:.05em; opacity:.85; }
-.colhead.main { color:var(--hot); } .colhead.count { color:var(--count); }
-.colhead.side { color:var(--side); } .colhead.missmd { color:var(--missmd); }
-.colhead.misssb { color:var(--misssb); }
 .col .empty { color:#39424c; }
 @media (max-width:1100px) { .diffcols { grid-template-columns:repeat(3,1fr); } }
 @media (max-width:640px) { .diffcols { grid-template-columns:repeat(2,1fr); } }
@@ -82,6 +77,10 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
 .cardline.hot .cname { color:var(--hot); font-weight:700; }
 .cardline.hot .qty { color:var(--hot); }
 #status { padding:40px 24px; color:var(--dim); }
+[data-card] { cursor:help; }
+#cardpop { position:fixed; z-index:1000; display:none; pointer-events:none; }
+#cardpop img { width:240px; max-width:44vw; border-radius:4.75% / 3.5%;
+  box-shadow:0 10px 34px rgba(0,0,0,.6); display:block; background:#0a0c0f; }
 @media (max-width:820px) { aside { display:none; } }
 </style></head>
 <body>
@@ -226,29 +225,31 @@ const deviationCount = (d) =>
 // ------- rendering ----------------------------------------------------------
 const esc = (s) => String(s).replace(/[&<>"']/g,
   (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+// data-card attr for a Scryfall hover preview (skip the synthetic Fetchland bucket)
+const dc = (name) => (name === FETCH_BUCKET ? "" : ` data-card="${esc(name)}"`);
 
 const cMain = ([name, n]) =>
-  `<span class="chip main" title="not in stock maindeck">${n} ${esc(name)}</span>`;
+  `<span class="chip main"${dc(name)} title="not in stock maindeck">${n} ${esc(name)}</span>`;
 const cCount = ([name, n, r]) =>
-  `<span class="chip count" title="stock runs ${fmtRange(r)}">${n} ${esc(name)} <em>(stock ${fmtRange(r)})</em></span>`;
+  `<span class="chip count"${dc(name)} title="stock runs ${fmtRange(r)}">${n} ${esc(name)} <em>(stock ${fmtRange(r)})</em></span>`;
 const cSide = ([name, n]) =>
-  `<span class="chip side" title="not in stock sideboard">SB ${n} ${esc(name)}</span>`;
+  `<span class="chip side"${dc(name)} title="not in stock sideboard">SB ${n} ${esc(name)}</span>`;
 const cMissMd = ([name, r]) =>
-  `<span class="chip missmd" title="stock runs ${fmtRange(r)}, deck has 0">${esc(name)} <em>(${fmtRange(r)})</em></span>`;
+  `<span class="chip missmd"${dc(name)} title="stock runs ${fmtRange(r)}, deck has 0">${esc(name)} <em>(${fmtRange(r)})</em></span>`;
 const cMissSb = (name) =>
-  `<span class="chip misssb" title="in stock sideboard, absent here">SB ${esc(name)}</span>`;
+  `<span class="chip misssb"${dc(name)} title="in stock sideboard, absent here">SB ${esc(name)}</span>`;
 
 // One column per category of difference.
 function diffCols(d) {
   const cols = [
-    ["md new", "main", d.newMain.map(cMain)],
-    ["count off", "count", d.countMain.map(cCount)],
-    ["sb new", "side", d.newSide.map(cSide)],
-    ["md missing", "missmd", d.missingMain.map(cMissMd)],
-    ["sb missing", "misssb", d.missingSide.map(cMissSb)],
+    d.newMain.map(cMain),
+    d.countMain.map(cCount),
+    d.newSide.map(cSide),
+    d.missingMain.map(cMissMd),
+    d.missingSide.map(cMissSb),
   ];
-  return '<div class="diffcols">' + cols.map(([label, cls, arr]) =>
-    `<div class="col"><div class="colhead ${cls}">${label}</div>` +
+  return '<div class="diffcols">' + cols.map((arr) =>
+    '<div class="col">' +
     (arr.length ? arr.join("") : '<span class="empty">·</span>') + "</div>"
   ).join("") + "</div>";
 }
@@ -258,7 +259,7 @@ function panelHtml(deck, unusual) {
     const rows = Object.keys(counts).sort().map((name) => {
       const hot = unusual.has(name) ? " hot" : "";
       return `<div class="cardline${hot}"><span class="qty">${counts[name]}</span>` +
-        `<span class="cname">${esc(name)}</span></div>`;
+        `<span class="cname"${dc(name)}>${esc(name)}</span></div>`;
     }).join("");
     const total = Object.values(counts).reduce((a, b) => a + b, 0);
     return `<div class="secttl">${title} (${total})</div>${rows}`;
@@ -297,11 +298,12 @@ function renderStockbar() {
   }
   const b = bucketStock(stock.main);
   const md = Object.keys(b).sort()
-    .map((n) => `<span class="stk">${fmtRange(b[n])} ${esc(n)}</span>`).join("");
-  const sb = stock.side.slice().sort().map(esc).join(", ");
+    .map((n) => `<span class="stk"${dc(n)}>${fmtRange(b[n])} ${esc(n)}</span>`).join("");
+  const sb = stock.side.slice().sort()
+    .map((n) => `<span class="stk"${dc(n)}>${esc(n)}</span>`).join(" ");
   bar.innerHTML =
     `<strong style="color:var(--ink)">Stock&nbsp;MD:</strong> ${md}` +
-    `<span>&nbsp;·&nbsp;<strong style="color:var(--ink)">SB:</strong> ${sb}</span>`;
+    `<span>&nbsp;·&nbsp;<strong style="color:var(--ink)">SB:</strong></span> ${sb}`;
 }
 
 function render() {
@@ -370,6 +372,49 @@ async function load(refresh) {
     el("refresh").disabled = false;
   }
 }
+
+// ------- Scryfall hover preview ---------------------------------------------
+const scry = (mode, name) =>
+  `https://api.scryfall.com/cards/named?${mode}=${encodeURIComponent(name)}&format=image&version=normal`;
+const pop = document.createElement("div");
+pop.id = "cardpop";
+pop.innerHTML = '<img alt="">';
+document.body.appendChild(pop);
+const popImg = pop.firstChild;
+let popName = null;
+
+function positionPop(e) {
+  const pad = 16, w = pop.offsetWidth || 240, h = pop.offsetHeight || 335;
+  let x = e.clientX + pad, y = e.clientY + pad;
+  if (x + w > innerWidth) x = e.clientX - pad - w;
+  if (y + h > innerHeight) y = Math.max(6, innerHeight - h - 6);
+  pop.style.left = x + "px";
+  pop.style.top = y + "px";
+}
+document.addEventListener("mouseover", (e) => {
+  const t = e.target.closest("[data-card]");
+  if (!t) return;
+  const name = t.getAttribute("data-card");
+  if (name !== popName) {
+    popName = name;
+    popImg.onerror = () => { popImg.onerror = null; popImg.src = scry("fuzzy", name); };
+    popImg.src = scry("exact", name);
+  }
+  pop.style.display = "block";
+  positionPop(e);
+});
+document.addEventListener("mousemove", (e) => {
+  if (pop.style.display === "block") positionPop(e);
+});
+document.addEventListener("mouseout", (e) => {
+  const t = e.target.closest("[data-card]");
+  if (!t) return;
+  const to = e.relatedTarget && e.relatedTarget.closest
+    ? e.relatedTarget.closest("[data-card]") : null;
+  if (to === t) return;
+  pop.style.display = "none";
+  popName = null;
+});
 
 initArchetypes();
 renderStockbar();
