@@ -1,7 +1,8 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MTG archetype — unusual card scan</title>
+<title>Izzet Prowess Explorer</title>
+<link rel="icon" href="https://api.scryfall.com/cards/named?exact=Lava%20Dart&format=image&version=art_crop">
 <style>
 :root {
   --bg:#0f1216; --card:#171c22; --line:#252c34; --ink:#e6e9ee; --dim:#8b95a1;
@@ -41,7 +42,16 @@ header .sub a { color:var(--side); }
 .stockedit-bar button:hover { border-color:#3a4552; }
 #stockApply { border-color:#2f5233; }
 .stockedit-note { color:var(--dim); font-size:11.5px; }
-.stockedit-note code { background:#1c2229; padding:1px 5px; border-radius:4px; }
+.stockedit-help { margin-top:8px; color:var(--dim); font-size:11.5px; max-width:660px; }
+.stockedit-help b { color:var(--ink); }
+.stockedit-help ul { margin:5px 0; padding-left:18px; }
+.stockedit-help li { margin:1px 0; }
+.stockedit-help code, .stockedit-note code { background:#1c2229; padding:1px 5px; border-radius:4px; }
+.stockedit-status { margin-top:8px; font-size:12px; }
+.stockedit-status:empty { display:none; }
+.stockedit-status.ok { color:#7ee081; }
+.stockedit-status.err { color:var(--accent); }
+.stockedit-status ul { margin:4px 0 0; padding-left:18px; }
 .digest { padding:10px 24px; border-bottom:1px solid var(--line); display:flex;
   flex-wrap:wrap; gap:6px; align-items:center; font-size:12px; }
 .digest strong { color:var(--dim); margin-right:2px; }
@@ -112,7 +122,7 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
 </style></head>
 <body>
 <header>
-  <h1 id="title">Izzet Prowess — unusual card scan</h1>
+  <h1 id="title">Izzet Prowess Explorer</h1>
   <div class="sub"><span id="meta">loading…</span> ·
     hover a deck for the full list · fetchlands bucketed ·
     <span style="color:var(--hot)">md added</span> /
@@ -132,9 +142,22 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
     <button id="stockApply">Apply</button>
     <button id="stockReset">Reset to default</button>
     <button id="stockCancel">Cancel</button>
-    <span class="stockedit-note">Saved in this browser only. One card per line, e.g.
-      <code>4 Lightning Bolt</code>, <code>2 (2-3) Mountain</code>,
-      <code>10 (8-10) Fetchland</code>. A <code>Sideboard</code> line splits the two.</span>
+    <span class="stockedit-note">Saved in this browser only.</span>
+  </div>
+  <div class="stockedit-status" id="stockStatus"></div>
+  <div class="stockedit-help">
+    One card per line as <code>&lt;count&gt; &lt;card name&gt;</code>; a
+    <code>Sideboard</code> line splits maindeck from sideboard. The count sets a
+    <b>nominal</b> (how many the reference list runs — every deck's diff is
+    measured from it) and an allowed range. A card whose count stays inside its
+    range still shows its delta but isn't flagged as tech:
+    <ul>
+      <li><code>4 Lightning Bolt</code> — exactly 4 (nominal 4, no tolerance).</li>
+      <li><code>2-3 Mountain</code> — allowed 2–3; nominal is the low end (2).</li>
+      <li><code>10 (8-10) Fetchland</code> — nominal 10, allowed 8–10.</li>
+    </ul>
+    Nominals should sum to 60 maindeck / 15 sideboard so the columns balance, and
+    all fetchlands share the single <code>Fetchland</code> line.
   </div>
 </div>
 <div class="digest" id="digest"></div>
@@ -383,19 +406,27 @@ function serializeStock(s) {
   return `Maindeck\n${block(s.main)}\n\nSideboard\n${block(s.side)}\n`;
 }
 function parseStockText(text) {
-  const main = {}, side = {};
+  const main = {}, side = {}, errors = [];
   let cur = main;
-  for (const raw of text.split(/\r?\n/)) {
+  text.split(/\r?\n/).forEach((raw, i) => {
     const s = raw.trim();
-    if (!s) continue;
-    if (/^side/i.test(s)) { cur = side; continue; }
-    if (/^(deck|main)/i.test(s)) { cur = main; continue; }
+    if (!s) return;
+    if (/^side/i.test(s)) { cur = side; return; }
+    if (/^(deck|main)/i.test(s)) { cur = main; return; }
     // value = number, "min-max", or "nom (min-max)"; the rest is the card name.
     const m = s.match(/^(\d+(?:\s*-\s*\d+)?(?:\s*\(\s*\d+\s*-\s*\d+\s*\))?)\s+(\S.*)$/);
-    if (m) cur[m[2].trim()] = m[1].replace(/\s+/g, " ").trim();
-  }
-  return { main, side };
+    if (!m) { errors.push(`line ${i + 1}: can't read "${s}" — expected "<count> <card>"`); return; }
+    const value = m[1].replace(/\s+/g, " ").trim(), name = m[2].trim();
+    const r = parseStock(value);
+    if (r.min > r.max) errors.push(`line ${i + 1} (${name}): range ${r.min}-${r.max} has min > max`);
+    else if (r.nom < r.min || r.nom > r.max)
+      errors.push(`line ${i + 1} (${name}): nominal ${r.nom} is outside its range ${r.min}-${r.max}`);
+    else cur[name] = value;
+  });
+  return { main, side, errors };
 }
+const nominalTotal = (counts) =>
+  Object.values(bucketStock(counts)).reduce((a, r) => a + r.nom, 0);
 function applyStock(s, persist) {
   STOCK = s;
   if (persist) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch (_) {} }
@@ -404,15 +435,32 @@ function applyStock(s, persist) {
   render();
 }
 function initStockEditor() {
-  const box = el("stockedit"), ta = el("stocktext");
-  const toggle = (show) => { box.hidden = !show; if (show) ta.value = serializeStock(STOCK); };
+  const box = el("stockedit"), ta = el("stocktext"), status = el("stockStatus");
+  const setStatus = (cls, html) => { status.className = "stockedit-status " + cls; status.innerHTML = html; };
+  const toggle = (show) => {
+    box.hidden = !show;
+    if (show) { ta.value = serializeStock(STOCK); setStatus("", ""); }
+  };
   el("editStock").addEventListener("click", () => toggle(box.hidden));
   el("stockCancel").addEventListener("click", () => toggle(false));
-  el("stockApply").addEventListener("click", () => { applyStock(parseStockText(ta.value), true); toggle(false); });
+  el("stockApply").addEventListener("click", () => {
+    const { main, side, errors } = parseStockText(ta.value);
+    if (errors.length) {
+      setStatus("err", `${errors.length} error${errors.length > 1 ? "s" : ""} — not applied:` +
+        "<ul>" + errors.map((e) => `<li>${esc(e)}</li>`).join("") + "</ul>");
+      return;
+    }
+    applyStock({ main, side }, true);
+    const md = nominalTotal(main), sb = nominalTotal(side);
+    const off = (md !== 60 || sb !== 15)
+      ? ` — heads up: nominals total ${md}/${sb}, expected 60/15 for balanced columns` : "";
+    setStatus("ok", esc(`Applied and saved.${off}`));
+  });
   el("stockReset").addEventListener("click", () => {
     try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
     applyStock(cloneStock(DEFAULT_STOCK), false);
     ta.value = serializeStock(STOCK);
+    setStatus("ok", "Reset to the default list.");
   });
 }
 
@@ -473,7 +521,7 @@ function renderDigest() {
   if (!top.length) { host.style.display = "none"; host.innerHTML = ""; return; }
   host.style.display = "flex";
   const range = (e) => e.sign + (e.min === e.max ? e.min : `${e.min}-${e.max}`);
-  host.innerHTML = `<strong>Most common deviations (of ${DATA.count} lists):</strong>` +
+  host.innerHTML = `<strong>Most common tech (of ${DATA.count} lists):</strong>` +
     top.map((e) => `<span class="chip ${e.cls}"${dc(e.name)} title="${e.decks} of ${DATA.count} lists">` +
       `<b>${range(e)}</b> ${esc(e.name)} <span class="dcount">(${e.decks})</span></span>`).join("");
 }
