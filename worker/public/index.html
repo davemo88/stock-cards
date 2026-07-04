@@ -578,7 +578,7 @@ function render() {
       ? '<span class="badge zero" title="no stock list">–</span>'
       : n === 0
         ? '<span class="badge zero" title="matches the stock list — 0 swaps">0/0</span>'
-        : `<span class="badge" title="${md} maindeck / ${sb} sideboard cards from stock"><b style="color:var(--hot)">${md}</b>/<b style="color:var(--misssb)">${sb}</b></span>`;
+        : `<span class="badge" title="${md} maindeck / ${sb} sideboard cards diff from stock"><b style="color:var(--hot)">${md}</b>/<b style="color:var(--misssb)">${sb}</b></span>`;
     li.innerHTML =
       `<div class="row">
         <span class="place">${esc(deck.place)}</span>
