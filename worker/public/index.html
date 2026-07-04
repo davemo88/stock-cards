@@ -233,12 +233,14 @@ const chip = (cls) => ([name, delta, n, r]) =>
   `<span class="chip ${cls}"${dc(name)} title="deck ${n}, stock ${fmtRange(r)}">${delta > 0 ? "+" : ""}${delta} ${esc(name)}</span>`;
 
 // Columns: maindeck added | removed, divider, then sideboard added | removed.
+// Each column is sorted by delta magnitude, largest change first.
+const byMag = (arr) => arr.slice().sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
 function diffCols(d) {
   const cols = [
-    ["", d.addMain.map(chip("main"))],       // md added
-    ["", d.remMain.map(chip("count"))],      // md removed
-    ["divide", d.addSide.map(chip("side"))], // sb added
-    ["", d.remSide.map(chip("scount"))],     // sb removed
+    ["", byMag(d.addMain).map(chip("main"))],       // md added
+    ["", byMag(d.remMain).map(chip("count"))],      // md removed
+    ["divide", byMag(d.addSide).map(chip("side"))], // sb added
+    ["", byMag(d.remSide).map(chip("scount"))],     // sb removed
   ];
   return '<div class="diffcols">' + cols.map(([cls, arr]) =>
     `<div class="col ${cls}">` +
