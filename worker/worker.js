@@ -40,8 +40,9 @@ export default {
     const slug = sanitizeSlug(url.searchParams.get("archetype") || DEFAULT_ARCHETYPE);
     const refresh = url.searchParams.get("refresh") === "1";
 
-    // Edge cache keyed by archetype (ignore ?refresh in the key).
-    const cacheKey = new Request(`${url.origin}/decks?archetype=${slug}`, request);
+    // Edge cache keyed by archetype (ignore ?refresh in the key). Bump the
+    // version when the payload shape changes so stale caches are skipped.
+    const cacheKey = new Request(`${url.origin}/decks?archetype=${slug}&v=2`, request);
     const cache = caches.default;
     if (!refresh) {
       const hit = await cache.match(cacheKey);
@@ -97,7 +98,36 @@ async function scrape(slug) {
     }
   }
 
-  return { generated: new Date().toISOString(), archetype: slug, count: decks.length, decks };
+  const names = [...new Set(decks.flatMap((d) =>
+    [...Object.keys(d.main), ...Object.keys(d.side)]))];
+  const mana = await fetchMana(names);
+
+  return {
+    generated: new Date().toISOString(), archetype: slug,
+    count: decks.length, decks, mana,
+  };
+}
+
+// name -> mana_cost string ("{1}{U}{R}") via Scryfall's bulk collection API.
+async function fetchMana(names) {
+  const mana = {};
+  for (let i = 0; i < names.length; i += 75) {
+    const identifiers = names.slice(i, i + 75).map((name) => ({ name }));
+    try {
+      const r = await fetch("https://api.scryfall.com/cards/collection", {
+        method: "POST",
+        headers: { "User-Agent": UA, "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ identifiers }),
+      });
+      if (!r.ok) continue;
+      const j = await r.json();
+      for (const c of j.data || []) {
+        const mc = c.mana_cost || (c.card_faces && c.card_faces[0] && c.card_faces[0].mana_cost) || "";
+        if (mc) mana[c.name] = mc;
+      }
+    } catch (_) { /* leave those cards without symbols */ }
+  }
+  return mana;
 }
 
 async function fetchText(target) {

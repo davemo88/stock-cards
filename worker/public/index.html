@@ -81,6 +81,9 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
 .cardline { display:flex; gap:8px; padding:1px 0; }
 .cardline .qty { color:var(--dim); min-width:18px; text-align:right;
   font-variant-numeric:tabular-nums; }
+.cardline .mana { margin-left:auto; display:inline-flex; gap:1px; align-items:center;
+  padding-left:8px; flex:none; }
+.cardline .mana img { height:13px; width:13px; display:block; }
 .cardline.add-md .cname, .cardline.rem-md .cname,
 .cardline.add-sb .cname, .cardline.rem-sb .cname { font-weight:700; }
 .cardline.add-md .cname, .cardline.add-md .qty { color:var(--hot); }
@@ -301,6 +304,16 @@ function diffCols(d) {
   ).join("") + "</div>";
 }
 
+// Scryfall symbol SVGs for a card's mana cost, e.g. "{1}{R}" or "{G/P}".
+function manaSymbols(name) {
+  const mc = (DATA && DATA.mana && DATA.mana[name]) || "";
+  const syms = (mc.match(/\{([^}]+)\}/g) || []).map((t) => {
+    const code = t.slice(1, -1).replace(/\//g, "");
+    return `<img class="ms" src="https://svgs.scryfall.io/card-symbols/${esc(code)}.svg" alt="${esc(t)}">`;
+  }).join("");
+  return syms ? `<span class="mana">${syms}</span>` : "";
+}
+
 function panelHtml(deck, d) {
   const map = (arr, cls) => Object.fromEntries(arr.map((e) => [e[0], cls]));
   const mdMap = d ? { ...map(d.addMain, "add-md"), ...map(d.remMain, "rem-md") } : {};
@@ -309,7 +322,7 @@ function panelHtml(deck, d) {
     const rows = Object.keys(counts).sort().map((name) => {
       const cls = hl[name] ? " " + hl[name] : "";
       return `<div class="cardline${cls}"><span class="qty">${counts[name]}</span>` +
-        `<span class="cname"${dc(name)}>${esc(name)}</span></div>`;
+        `<span class="cname"${dc(name)}>${esc(name)}</span>${manaSymbols(name)}</div>`;
     }).join("");
     const total = Object.values(counts).reduce((a, b) => a + b, 0);
     return `<div class="secttl">${title} (${total})</div>${rows}`;
