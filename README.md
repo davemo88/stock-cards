@@ -69,16 +69,16 @@ self-canceling mana shuffle (`+1 Mountain`, `+1 Steam Vents`, `-2 Fetchland`)
 disappears when the real diffs already balance, but a `-1 Consign to Memory`
 that makes room for a `+2 Tormod's Crypt` still shows.
 
-## Archetypes
-
-The dropdown is driven by `ARCHETYPES` in `worker/public/index.html`; the Worker
-scrapes any `?archetype=<slug>`. An archetype only gets comparison/highlighting
-when it has an entry in `STOCKS` — otherwise its recent decks are listed plainly.
-
 ## Editing the stock list
 
-Edit the relevant `STOCKS[<slug>]` entry (`main` with numbers/ranges, `side` as
-a list of names) in `worker/public/index.html`.
+The site is dedicated to Modern Izzet Prowess. The **✎ edit stock list** button
+opens a textarea to edit the stock list live — one card per line
+(`4 Lightning Bolt`, `2 (2-3) Mountain`, `10 (8-10) Fetchland`), with a
+`Sideboard` line splitting the two sections. **Apply** re-diffs every deck and
+saves the edit to `localStorage` (this browser only); **Reset to default**
+restores the built-in list and clears the saved copy.
+
+The built-in default lives in `DEFAULT_STOCK` in `worker/public/index.html`.
 
 ## Deploying
 

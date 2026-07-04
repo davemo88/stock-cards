@@ -31,6 +31,17 @@ header .sub a { color:var(--side); }
   font:inherit; }
 .controls select:hover, .controls button:hover { border-color:#3a4552; }
 .controls button:disabled { opacity:.5; cursor:default; }
+.stockedit { padding:12px 24px; border-bottom:1px solid var(--line); }
+.stockedit textarea { width:100%; max-width:640px; display:block; background:#0d1015;
+  color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:10px 12px;
+  font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; resize:vertical; }
+.stockedit-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+.stockedit-bar button { background:#1c2229; color:var(--ink); border:1px solid var(--line);
+  border-radius:6px; padding:4px 12px; cursor:pointer; font:inherit; font-size:12px; }
+.stockedit-bar button:hover { border-color:#3a4552; }
+#stockApply { border-color:#2f5233; }
+.stockedit-note { color:var(--dim); font-size:11.5px; }
+.stockedit-note code { background:#1c2229; padding:1px 5px; border-radius:4px; }
 .digest { padding:10px 24px; border-bottom:1px solid var(--line); display:flex;
   flex-wrap:wrap; gap:6px; align-items:center; font-size:12px; }
 .digest strong { color:var(--dim); margin-right:2px; }
@@ -111,9 +122,20 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
 </header>
 <div class="stockbar" id="stockbar"></div>
 <div class="controls">
-  <label>archetype <select id="archetype"></select></label>
+  <button id="editStock">✎ edit stock list</button>
   <button id="refresh">↻ refresh</button>
   <span id="freshness"></span>
+</div>
+<div class="stockedit" id="stockedit" hidden>
+  <textarea id="stocktext" spellcheck="false" rows="20"></textarea>
+  <div class="stockedit-bar">
+    <button id="stockApply">Apply</button>
+    <button id="stockReset">Reset to default</button>
+    <button id="stockCancel">Cancel</button>
+    <span class="stockedit-note">Saved in this browser only. One card per line, e.g.
+      <code>4 Lightning Bolt</code>, <code>2 (2-3) Mountain</code>,
+      <code>10 (8-10) Fetchland</code>. A <code>Sideboard</code> line splits the two.</span>
+  </div>
 </div>
 <div class="digest" id="digest"></div>
 <div class="layout">
@@ -126,40 +148,37 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
 
 <script>
 // ------- config -------------------------------------------------------------
-const WORKER = "/decks"; // same-origin: page + API served by one Worker
+const WORKER = "/decks";                 // same-origin: page + API served by one Worker
+const ARCHETYPE = "modern-izzet-prowess";
+const STORAGE_KEY = "prowess-stock-v1";  // localStorage for the user's edited stock
 
-// Archetypes offered in the dropdown. Add a stock list under STOCKS[slug] to
-// enable comparison; without one, the archetype's recent decks are just listed.
-const ARCHETYPES = [
-  { slug:"modern-izzet-prowess",  label:"Izzet Prowess" },
-  { slug:"modern-boros-energy",   label:"Boros Energy" },
-  { slug:"modern-dimir-murktide", label:"Dimir Murktide" },
-  { slug:"modern-domain-zoo",     label:"Domain Zoo" },
-  { slug:"modern-living-end",     label:"Living End" },
-];
-
-// Stock lists keyed by archetype slug. A maindeck count may be a number (4) or
-// a range string: "2-3" (flag only outside the range), "0-2" (a flex slot that
-// is never "missing"). Sideboard is presence-only.
-const STOCKS = {
-  "modern-izzet-prowess": {
-    main: {
-      "Thundering Falls":1, "Slickshot Show-Off":4, "Violent Urge":2,
-      "Cori-Steel Cutter":4, "Mishra's Bauble":4, "Lightning Bolt":4,
-      "Preordain":4, "Mutagenic Growth":4, "Steam Vents":"3 (3-4)", "Monastery Swiftspear":4,
-      "Lava Dart":4, "Fiery Islet":2, "Mountain":"2 (2-3)",
-      "Expressive Iteration":4, "Dragon's Rage Channeler":4,
-      // All fetchlands bucket under the "Fetchland" key. Nominal 10, allowed 8-10:
-      "Fetchland":"10 (8-10)",
-    },
-    side: {
-      "Meltdown":2, "Consign to Memory":"4 (3-4)", "Spell Snare":1, "Unholy Heat":"4 (3-4)",
-      "Spell Pierce":2, "Assault Strobe":1, "Murktide Regent":1,
-    },
+// The default stock list. A count may be a number (4), a range "2-3", or a
+// nominal + range "10 (8-10)" (nominal is what deltas are measured from).
+const DEFAULT_STOCK = {
+  main: {
+    "Thundering Falls":1, "Slickshot Show-Off":4, "Violent Urge":2,
+    "Cori-Steel Cutter":4, "Mishra's Bauble":4, "Lightning Bolt":4,
+    "Preordain":4, "Mutagenic Growth":4, "Steam Vents":"3 (3-4)", "Monastery Swiftspear":4,
+    "Lava Dart":4, "Fiery Islet":2, "Mountain":"2 (2-3)",
+    "Expressive Iteration":4, "Dragon's Rage Channeler":4,
+    // All fetchlands bucket under the "Fetchland" key. Nominal 10, allowed 8-10:
+    "Fetchland":"10 (8-10)",
   },
-  // Add more here. side takes counts/ranges just like main, e.g.:
-  // "modern-boros-energy": { main: { "Ocelot Pride":4, ... }, side: { "Wear // Tear":"1-2", ... } },
+  side: {
+    "Meltdown":2, "Consign to Memory":"4 (3-4)", "Spell Snare":1, "Unholy Heat":"4 (3-4)",
+    "Spell Pierce":2, "Assault Strobe":1, "Murktide Regent":1,
+  },
 };
+
+const cloneStock = (s) => ({ main: { ...s.main }, side: { ...s.side } });
+function loadStock() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) { const s = JSON.parse(raw); if (s && s.main && s.side) return s; }
+  } catch (_) { /* ignore */ }
+  return cloneStock(DEFAULT_STOCK);
+}
+let STOCK = loadStock();
 
 const FETCHLANDS = new Set([
   "Arid Mesa","Scalding Tarn","Wooded Foothills","Bloodstained Mire",
@@ -168,7 +187,6 @@ const FETCHLANDS = new Set([
 ]);
 const FETCH_BUCKET = "Fetchland";
 
-let ARCHETYPE = ARCHETYPES[0].slug; // current selection
 
 // ------- stock parsing + bucketing ------------------------------------------
 // A stock count carries a nominal (its count in the real list) and an allowed
@@ -210,7 +228,7 @@ function bucketStock(mainSpec) {
   }
   return out;
 }
-const currentStock = () => STOCKS[ARCHETYPE] || null;
+const currentStock = () => STOCK;
 
 // ------- diff ---------------------------------------------------------------
 function diff(deck, ignoreCounts) {
@@ -359,30 +377,48 @@ const el = (id) => document.getElementById(id);
 const body = el("panelbody");
 let DATA = null, pinned = null;
 
-function initArchetypes() {
-  const sel = el("archetype");
-  sel.innerHTML = ARCHETYPES.map((a) =>
-    `<option value="${a.slug}">${esc(a.label)}${STOCKS[a.slug] ? "" : " (no stock list)"}</option>`
-  ).join("");
-  sel.value = ARCHETYPE;
-  sel.addEventListener("change", () => {
-    ARCHETYPE = sel.value;
-    const a = ARCHETYPES.find((x) => x.slug === ARCHETYPE);
-    el("title").textContent = `${a.label} — unusual card scan`;
-    document.title = `${a.label} — unusual card scan`;
-    renderStockbar();
-    load(false);
+// ------- stock editor -------------------------------------------------------
+function serializeStock(s) {
+  const block = (counts) => Object.entries(counts).map(([n, v]) => `${v} ${n}`).join("\n");
+  return `Maindeck\n${block(s.main)}\n\nSideboard\n${block(s.side)}\n`;
+}
+function parseStockText(text) {
+  const main = {}, side = {};
+  let cur = main;
+  for (const raw of text.split(/\r?\n/)) {
+    const s = raw.trim();
+    if (!s) continue;
+    if (/^side/i.test(s)) { cur = side; continue; }
+    if (/^(deck|main)/i.test(s)) { cur = main; continue; }
+    // value = number, "min-max", or "nom (min-max)"; the rest is the card name.
+    const m = s.match(/^(\d+(?:\s*-\s*\d+)?(?:\s*\(\s*\d+\s*-\s*\d+\s*\))?)\s+(\S.*)$/);
+    if (m) cur[m[2].trim()] = m[1].replace(/\s+/g, " ").trim();
+  }
+  return { main, side };
+}
+function applyStock(s, persist) {
+  STOCK = s;
+  if (persist) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch (_) {} }
+  renderStockbar();
+  renderDigest();
+  render();
+}
+function initStockEditor() {
+  const box = el("stockedit"), ta = el("stocktext");
+  const toggle = (show) => { box.hidden = !show; if (show) ta.value = serializeStock(STOCK); };
+  el("editStock").addEventListener("click", () => toggle(box.hidden));
+  el("stockCancel").addEventListener("click", () => toggle(false));
+  el("stockApply").addEventListener("click", () => { applyStock(parseStockText(ta.value), true); toggle(false); });
+  el("stockReset").addEventListener("click", () => {
+    try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+    applyStock(cloneStock(DEFAULT_STOCK), false);
+    ta.value = serializeStock(STOCK);
   });
 }
 
 function renderStockbar() {
   const stock = currentStock();
   const bar = el("stockbar");
-  if (!stock) {
-    bar.innerHTML = "<span>No stock list defined for this archetype — decks are " +
-      "listed without comparison. Add one under <code>STOCKS</code> in index.html.</span>";
-    return;
-  }
   const b = bucketStock(stock.main);
   const md = Object.keys(b).sort()
     .map((n) => `<span class="stk"${dc(n)}>${fmtStock(b[n])} ${esc(n)}</span>`).join("");
@@ -554,7 +590,7 @@ document.addEventListener("mouseout", (e) => {
   popName = null;
 });
 
-initArchetypes();
+initStockEditor();
 renderStockbar();
 el("refresh").addEventListener("click", () => load(true));
 load(false);
