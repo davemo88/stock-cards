@@ -287,15 +287,15 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
   </div>
   <div class="odds-grid">
     <label><span><b>N</b> — population size</span><input id="odN" type="number" min="1" step="1" value="60"></label>
-    <label><span><b>K</b> — successes in population</span><input id="odK" type="number" min="0" step="1" value="24"></label>
+    <label><span><b>K</b> — successes in population</span><input id="odK" type="number" min="0" step="1" value="18"></label>
     <label><span><b>n</b> — number of draws</span><input id="odn" type="number" min="0" step="1" value="7"></label>
     <label><span><b>k</b> — observed successes</span><input id="odk" type="number" min="0" step="1" value="2"></label>
   </div>
   <div class="odds-result" id="oddsResult"></div>
-  <div class="odds-chart"><div class="odds-cap">Vary <b>K</b> — successes in population (<em>n</em>, <em>k</em> fixed)</div>
-    <div id="oddsChart"></div></div>
   <div class="odds-chart"><div class="odds-cap">Vary <b>k</b> — successes in sample (<em>N</em>, <em>K</em>, <em>n</em> fixed)</div>
     <div id="oddsChart2"></div></div>
+  <div class="odds-chart"><div class="odds-cap">Vary <b>K</b> — successes in population (<em>n</em>, <em>k</em> fixed)</div>
+    <div id="oddsChart"></div></div>
 </div>
 
 <script>
@@ -1085,8 +1085,12 @@ function hyperProb(N, K, n, k, cum) {
 
 // Generic chart: exact-probability bars + cumulative (P≥) line over an index
 // 0..M, on a fixed 0-100% axis, with the current index highlighted. `pmf`/`cum`
-// are the two series; `ticks` are the x-values to label; `xLabel` names the axis.
-function drawProbChart(pmf, cum, curIdx, xLabel, ticks) {
+// are the two series; `ticks` are the x-indices to label; `xLabel` names the axis.
+// opts: {showCum} draws the cumulative line/legend; {xVal} maps an index to the
+// number shown on the x-axis (defaults to the index itself).
+function drawProbChart(pmf, cum, curIdx, xLabel, ticks, opts) {
+  const showCum = !opts || opts.showCum !== false;
+  const xVal = (opts && opts.xVal) || ((i) => i);
   const M = pmf.length - 1;
   const W = 424, H = 160, padL = 30, padR = 6, padT = 22, padB = 26;
   const plotW = W - padL - padR, plotH = H - padT - padB;
@@ -1097,13 +1101,14 @@ function drawProbChart(pmf, cum, curIdx, xLabel, ticks) {
   let bars = "";
   for (let i = 0; i <= M; i++) {
     const yv = y(pmf[i]);
+    const cumTip = showCum ? `, cumulative ${(cum[i] * 100).toFixed(2)}%` : "";
     bars += `<rect x="${(x0 + i * bw).toFixed(1)}" y="${yv.toFixed(1)}" ` +
       `width="${Math.max(bw - 0.6, 0.7).toFixed(2)}" height="${(yBase - yv).toFixed(1)}" ` +
       `fill="${i === curIdx ? "var(--hot)" : "#3a4552"}">` +
-      `<title>${i}: exact ${(pmf[i] * 100).toFixed(2)}%, cumulative ${(cum[i] * 100).toFixed(2)}%</title></rect>`;
+      `<title>${xVal(i)}: exact ${(pmf[i] * 100).toFixed(2)}%${cumTip}</title></rect>`;
   }
-  const pts = cum.map((v, i) => `${xTick(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
-  const dotX = xTick(curIdx), dotY = y(cum[curIdx] || 0);
+  const pts = showCum ? cum.map((v, i) => `${xTick(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ") : "";
+  const dotX = xTick(curIdx), dotY = y((showCum && cum[curIdx]) || 0);
   // horizontal gridlines at 0/25/50/75/100%
   let grid = "";
   for (let p = 0; p <= 100; p += 25) {
@@ -1113,42 +1118,47 @@ function drawProbChart(pmf, cum, curIdx, xLabel, ticks) {
       `<text class="axl" x="${padL - 4}" y="${(gy + 3).toFixed(1)}" text-anchor="end">${p}%</text>`;
   }
   const xlabels = ticks.filter((t) => t >= 0 && t <= M).map((t) =>
-    `<text class="axl" x="${xTick(t).toFixed(1)}" y="${(yBase + 11).toFixed(1)}" text-anchor="middle">${t}</text>`).join("");
+    `<text class="axl" x="${xTick(t).toFixed(1)}" y="${(yBase + 11).toFixed(1)}" text-anchor="middle">${xVal(t)}</text>`).join("");
   const legend =
     `<rect x="${padL}" y="4" width="9" height="9" fill="#3a4552"/>` +
     `<text class="axl" x="${padL + 13}" y="12">P(X=k) exact</text>` +
-    `<line x1="${padL + 96}" y1="8.5" x2="${padL + 112}" y2="8.5" stroke="var(--side)" stroke-width="2"/>` +
-    `<text class="axl" x="${padL + 116}" y="12">P(X≥k) cumulative</text>`;
+    (showCum
+      ? `<line x1="${padL + 96}" y1="8.5" x2="${padL + 112}" y2="8.5" stroke="var(--side)" stroke-width="2"/>` +
+        `<text class="axl" x="${padL + 116}" y="12">P(X≥k) cumulative</text>`
+      : "");
+  const cumLine = showCum
+    ? `<polyline points="${pts}" fill="none" stroke="var(--side)" stroke-width="1.6"/>` +
+      `<circle cx="${dotX.toFixed(1)}" cy="${dotY.toFixed(1)}" r="2.6" fill="var(--side)"/>`
+    : "";
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="probability chart">` +
     grid + bars +
     `<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${yBase}" stroke="var(--line)"/>` +
-    `<polyline points="${pts}" fill="none" stroke="var(--side)" stroke-width="1.6"/>` +
-    `<circle cx="${dotX.toFixed(1)}" cy="${dotY.toFixed(1)}" r="2.6" fill="var(--side)"/>` +
+    cumLine +
     legend + xlabels +
     `<text class="axl" x="${(padL + plotW / 2).toFixed(0)}" y="${H - 2}" text-anchor="middle">${xLabel}</text>` +
     `</svg>`;
 }
 
-// Chart 1: probability as K (successes in population) varies 0..N, with n/k fixed.
+// Chart 1: probability as K (successes in population) varies within ±2 of the
+// current K, with n/k fixed. Bars labelled with their actual K value.
 function chartVaryK(N, n, k, curK) {
-  const cap = Math.min(N, 400);                 // guard against a runaway N
+  const lo = Math.max(0, curK - 2), hi = Math.min(N, curK + 2);
   const pmf = [], cum = [];
-  for (let K = 0; K <= cap; K++) {
+  for (let K = lo; K <= hi; K++) {
     pmf.push(hyperProb(N, K, n, k, false));
     cum.push(hyperProb(N, K, n, k, true));
   }
-  const ticks = [...new Set([0, curK, cap])];
-  return drawProbChart(pmf, cum, curK, "K — successes in population", ticks);
+  const ticks = pmf.map((_, i) => i);           // label every bar
+  return drawProbChart(pmf, cum, curK - lo, "K — successes in population", ticks,
+    { xVal: (i) => lo + i });
 }
-// Chart 2: probability as k (successes in the sample) varies 0..n, with N/K/n fixed.
+// Chart 2: probability as k (successes in the sample) varies 0..n, with N/K/n
+// fixed. Exact bars only — no cumulative line.
 function chartVaryk(N, K, n, curk) {
-  const pmf = [], cum = [];
-  for (let k = 0; k <= n; k++) {
-    pmf.push(hyperProb(N, K, n, k, false));
-    cum.push(hyperProb(N, K, n, k, true));
-  }
+  const pmf = [];
+  for (let k = 0; k <= n; k++) pmf.push(hyperProb(N, K, n, k, false));
   const ticks = n <= 15 ? pmf.map((_, i) => i) : [...new Set([0, curk, n])];
-  return drawProbChart(pmf, cum, curk, "k — successes in sample", ticks);
+  return drawProbChart(pmf, [], curk, "k — successes in sample", ticks, { showCum: false });
 }
 
 function renderOdds() {
