@@ -1088,6 +1088,16 @@ function hyperProb(N, K, n, k, cum) {
 // are the two series; `ticks` are the x-indices to label; `xLabel` names the axis.
 // opts: {showCum} draws the cumulative line/legend; {xVal} maps an index to the
 // number shown on the x-axis (defaults to the index itself).
+// Pick a "nice" axis ceiling + gridline step covering [0, m], aiming for ~4
+// intervals with a step of 1/2/2.5/5 × a power of ten.
+function niceScale(m) {
+  if (!(m > 0)) return { max: 0.05, step: 0.05 };
+  const rough = m / 4;
+  const mag = Math.pow(10, Math.floor(Math.log10(rough)));
+  const norm = rough / mag;
+  const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * mag;
+  return { max: Math.ceil(m / step) * step, step };
+}
 function drawProbChart(pmf, cum, curIdx, xLabel, ticks, opts) {
   const showCum = !opts || opts.showCum !== false;
   const xVal = (opts && opts.xVal) || ((i) => i);
@@ -1096,7 +1106,14 @@ function drawProbChart(pmf, cum, curIdx, xLabel, ticks, opts) {
   const plotW = W - padL - padR, plotH = H - padT - padB;
   const bw = plotW / (M + 1);
   const x0 = padL, yBase = padT + plotH;
-  const y = (v) => yBase - Math.min(v, 1) * plotH;   // fixed 0..1 (=0..100%) scale
+  // Fit the y-axis to the displayed values: find the largest plotted value and
+  // round up to a "nice" ceiling (with a nice gridline step) so the bars fill
+  // the plot instead of hugging the bottom of a fixed 0-100% scale.
+  let dataMax = 0;
+  for (const v of pmf) if (v > dataMax) dataMax = v;
+  if (showCum) for (const v of cum) if (v > dataMax) dataMax = v;
+  const { max: yMax, step: yStep } = niceScale(dataMax);
+  const y = (v) => yBase - Math.min(v, yMax) / yMax * plotH;
   const xTick = (i) => x0 + (i + 0.5) * bw;          // bar/point centre
   let bars = "";
   for (let i = 0; i <= M; i++) {
@@ -1109,13 +1126,13 @@ function drawProbChart(pmf, cum, curIdx, xLabel, ticks, opts) {
   }
   const pts = showCum ? cum.map((v, i) => `${xTick(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ") : "";
   const dotX = xTick(curIdx), dotY = y((showCum && cum[curIdx]) || 0);
-  // horizontal gridlines at 0/25/50/75/100%
+  // horizontal gridlines at each nice step up to yMax
   let grid = "";
-  for (let p = 0; p <= 100; p += 25) {
-    const gy = y(p / 100);
+  for (let g = 0; g <= yMax + 1e-9; g += yStep) {
+    const gy = y(g);
     grid += `<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" ` +
-      `stroke="var(--line)" stroke-opacity="${p === 0 ? 1 : 0.5}"/>` +
-      `<text class="axl" x="${padL - 4}" y="${(gy + 3).toFixed(1)}" text-anchor="end">${p}%</text>`;
+      `stroke="var(--line)" stroke-opacity="${g === 0 ? 1 : 0.5}"/>` +
+      `<text class="axl" x="${padL - 4}" y="${(gy + 3).toFixed(1)}" text-anchor="end">${+(g * 100).toFixed(2)}%</text>`;
   }
   const xlabels = ticks.filter((t) => t >= 0 && t <= M).map((t) =>
     `<text class="axl" x="${xTick(t).toFixed(1)}" y="${(yBase + 11).toFixed(1)}" text-anchor="middle">${xVal(t)}</text>`).join("");
