@@ -1159,7 +1159,9 @@ function drawProbChart(pmf, cum, curIdx, xLabel, ticks, opts) {
 // Chart 1: probability as K (successes in population) varies within ±2 of the
 // current K, with n/k fixed. Bars labelled with their actual K value.
 function chartVaryK(N, n, k, curK) {
-  const lo = Math.max(0, curK - 2), hi = Math.min(N, curK + 2);
+  // Magic rule: for a small K (≤ 4) show the whole 0–4 window; otherwise K±2.
+  const lo = curK <= 4 ? 0 : curK - 2;
+  const hi = Math.min(N, curK <= 4 ? 4 : curK + 2);
   const pmf = [], cum = [];
   for (let K = lo; K <= hi; K++) {
     pmf.push(hyperProb(N, K, n, k, false));
@@ -1172,9 +1174,10 @@ function chartVaryK(N, n, k, curK) {
 // Chart 2: probability as k (successes in the sample) varies 0..n, with N/K/n
 // fixed. Exact bars only — no cumulative line.
 function chartVaryk(N, K, n, curk) {
+  const kMax = Math.min(n, K);       // can't observe more successes than exist (K) or than drawn (n)
   const pmf = [];
-  for (let k = 0; k <= n; k++) pmf.push(hyperProb(N, K, n, k, false));
-  const ticks = n <= 15 ? pmf.map((_, i) => i) : [...new Set([0, curk, n])];
+  for (let k = 0; k <= kMax; k++) pmf.push(hyperProb(N, K, n, k, false));
+  const ticks = kMax <= 15 ? pmf.map((_, i) => i) : [...new Set([0, curk, kMax])];
   return drawProbChart(pmf, [], curk, "k — successes in sample", ticks, { showCum: false });
 }
 
