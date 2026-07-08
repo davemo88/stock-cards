@@ -133,13 +133,17 @@ body.hand-open { padding-bottom:250px; }
 .chip.side { color:var(--misssb); border-color:#274b46; background:#0f201d; }
 .chip.scount { color:var(--side); border-color:#2a4a63; background:#111f2a; }
 .chip.none { color:var(--dim); border-color:var(--line); }
-.diffcols { margin-top:8px; display:grid; grid-template-columns:repeat(4,1fr); gap:8px 10px; }
+.diffcols { margin-top:8px; display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+.diffcard { border:1px solid var(--line); border-radius:8px; padding:9px 11px 10px;
+  background:#0c0f0a; }
+.diffcard-label { font-size:10px; font-weight:700; color:var(--dim); margin-bottom:8px;
+  text-transform:uppercase; letter-spacing:.06em; }
+.diffcard .cols { display:grid; grid-template-columns:repeat(2,1fr); gap:8px 10px; }
 .col { display:flex; flex-direction:column; gap:4px; align-items:flex-start; min-width:0; }
 .col.divide { border-left:1px solid var(--line); padding-left:11px; }
 .col .chip { max-width:100%; white-space:normal; }
 .col .empty { color:#39424c; }
-@media (max-width:1100px) { .diffcols { grid-template-columns:repeat(3,1fr); } }
-@media (max-width:640px) { .diffcols { grid-template-columns:repeat(2,1fr); } }
+@media (max-width:640px) { .diffcols { grid-template-columns:1fr; } }
 aside { position:sticky; top:0; width:300px; flex:none; height:100vh;
   border-left:1px solid var(--line); padding:16px; overflow:auto; }
 aside .hint { color:var(--dim); font-size:12px; }
@@ -166,7 +170,50 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
 #cardpop { position:fixed; z-index:1000; display:none; pointer-events:none; }
 #cardpop img { width:240px; max-width:44vw; border-radius:4.75% / 3.5%;
   box-shadow:0 10px 34px rgba(0,0,0,.6); display:block; background:#0a0c0f; }
-@media (max-width:820px) { aside { display:none; } #handpanel { right:0; } }
+/* Decklist panel header — title + ODDS button. */
+.panelhdr { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.panelhdr h2 { margin:0; flex:1; }
+.oddsbtn { background:#241d10; color:var(--hot); border:1px solid #5a4626;
+  border-radius:6px; padding:3px 11px; font:inherit; font-size:11px; font-weight:700;
+  letter-spacing:.06em; cursor:pointer; text-transform:uppercase; flex:none; }
+.oddsbtn:hover { border-color:var(--hot); }
+/* Hypergeometric calculator — floats centred in the deck-list area, no backdrop
+   so the side decklist stays visible and interactive. */
+#oddsModal { position:fixed; z-index:2000; top:50%; left:calc((100vw - 300px) / 2);
+  transform:translate(-50%,-50%); width:460px; max-width:calc(100vw - 340px);
+  background:var(--card); border:1px solid var(--line); border-radius:12px;
+  box-shadow:0 18px 60px rgba(0,0,0,.6); padding:16px 18px 18px; }
+.odds-head { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+.odds-head strong { font-size:14px; flex:1; }
+.odds-head button { background:#1c2229; border:1px solid var(--line); color:var(--ink);
+  border-radius:6px; padding:2px 9px; cursor:pointer; font:inherit; }
+.odds-head button:hover { border-color:#3a4552; }
+.odds-grid { display:grid; grid-template-columns:1fr 1fr; gap:9px 12px; }
+.odds-grid label { display:flex; flex-direction:column; gap:3px; font-size:11px;
+  color:var(--dim); }
+.odds-grid label b { color:var(--ink); font-weight:700; }
+.odds-grid input { background:#0d1015; color:var(--ink); border:1px solid var(--line);
+  border-radius:6px; padding:5px 8px; font:inherit; font-size:13px;
+  font-variant-numeric:tabular-nums; width:100%; box-sizing:border-box; min-width:0; }
+.odds-grid input:focus { outline:none; border-color:#3a4552; }
+.odds-result { margin:8px 0 12px; display:grid; grid-template-columns:repeat(4,1fr);
+  gap:8px; }
+.odds-result .orow { display:flex; flex-direction:column; gap:2px; align-items:center;
+  border:1px solid var(--line); border-radius:7px; padding:6px 4px; text-align:center; }
+.odds-result .olab { font-size:11px; color:var(--dim); font-variant-numeric:tabular-nums; }
+.odds-result .oval { font-size:16px; font-weight:700; color:var(--ink);
+  font-variant-numeric:tabular-nums; }
+.odds-result .orow.eq .oval { color:var(--hot); }
+.odds-result .orow.ge .oval { color:var(--side); }
+.odds-result .err { grid-column:1 / -1; color:var(--accent); }
+.odds-chart { margin-top:10px; }
+.odds-chart .odds-cap { font-size:11px; color:var(--dim); margin-bottom:2px; }
+.odds-chart .odds-cap b { color:var(--hot); }
+.odds-chart .odds-cap em { font-style:normal; color:var(--ink); }
+.odds-chart svg { display:block; width:100%; height:auto; }
+.odds-chart .axl { fill:var(--dim); font-size:9px; }
+@media (max-width:820px) { aside { display:none; } #handpanel { right:0; }
+  #oddsModal { left:50%; max-width:calc(100vw - 28px); } }
 </style></head>
 <body>
 <header>
@@ -216,7 +263,9 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
 <div class="digest" id="digest"></div>
 <div class="layout">
   <ul class="decks" id="decks"></ul>
-  <aside id="panel"><h2>Decklist</h2><div id="panelbody">
+  <aside id="panel"><div class="panelhdr"><h2>Decklist</h2>
+    <button class="oddsbtn" id="oddsBtn" title="Hypergeometric draw calculator">Odds</button></div>
+    <div id="panelbody">
     <div class="hint">Hover a deck on the left to preview its full list here.</div>
   </div></aside>
 </div>
@@ -229,6 +278,24 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
     <button id="hand-close">✕ close</button>
   </div>
   <div class="hand-cards" id="hand-cards"></div>
+</div>
+
+<div id="oddsModal" hidden>
+  <div class="odds-head">
+    <strong>Hypergeometric calculator</strong>
+    <button id="oddsClose" title="close">✕</button>
+  </div>
+  <div class="odds-grid">
+    <label><span><b>N</b> — population size</span><input id="odN" type="number" min="1" step="1" value="60"></label>
+    <label><span><b>K</b> — successes in population</span><input id="odK" type="number" min="0" step="1" value="24"></label>
+    <label><span><b>n</b> — number of draws</span><input id="odn" type="number" min="0" step="1" value="7"></label>
+    <label><span><b>k</b> — observed successes</span><input id="odk" type="number" min="0" step="1" value="2"></label>
+  </div>
+  <div class="odds-result" id="oddsResult"></div>
+  <div class="odds-chart"><div class="odds-cap">Vary <b>K</b> — successes in population (<em>n</em>, <em>k</em> fixed)</div>
+    <div id="oddsChart"></div></div>
+  <div class="odds-chart"><div class="odds-cap">Vary <b>k</b> — successes in sample (<em>N</em>, <em>K</em>, <em>n</em> fixed)</div>
+    <div id="oddsChart2"></div></div>
 </div>
 
 <script>
@@ -392,20 +459,23 @@ const dc = (name) => (name === FETCH_BUCKET ? "" : ` data-card="${esc(name)}"`);
 const chip = (cls) => ([name, delta, n, r]) =>
   `<span class="chip ${cls}"${dc(name)} title="deck ${n}, stock ${fmtStock(r)}">${delta > 0 ? "+" : ""}${delta} ${esc(name)}</span>`;
 
-// Columns: maindeck added | removed, divider, then sideboard added | removed.
+// Two labelled cards (MD, SB), each holding added | removed columns.
 // Each column sorted by delta magnitude, largest change first.
 const byMag = (arr) => arr.slice().sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+const diffCol = (cls, arr) => `<div class="col ${cls}">` +
+  (arr.length ? arr.join("") : '<span class="empty">·</span>') + "</div>";
+function diffCard(label, add, addCls, rem, remCls) {
+  return '<div class="diffcard"><div class="diffcard-label">' + label + "</div>" +
+    '<div class="cols">' +
+    diffCol("", byMag(add).map(chip(addCls))) +          // added
+    diffCol("divide", byMag(rem).map(chip(remCls))) +    // removed
+    "</div></div>";
+}
 function diffCols(d) {
-  const cols = [
-    ["", byMag(d.addMain).map(chip("main"))],       // md added
-    ["", byMag(d.remMain).map(chip("count"))],      // md removed
-    ["divide", byMag(d.addSide).map(chip("side"))], // sb added
-    ["", byMag(d.remSide).map(chip("scount"))],     // sb removed
-  ];
-  return '<div class="diffcols">' + cols.map(([cls, arr]) =>
-    `<div class="col ${cls}">` +
-    (arr.length ? arr.join("") : '<span class="empty">·</span>') + "</div>"
-  ).join("") + "</div>";
+  return '<div class="diffcols">' +
+    diffCard("MD", d.addMain, "main", d.remMain, "count") +
+    diffCard("SB", d.addSide, "side", d.remSide, "scount") +
+    "</div>";
 }
 
 // Scryfall symbol SVGs for a card's mana cost, e.g. "{1}{R}" or "{G/P}".
@@ -988,6 +1058,133 @@ document.addEventListener("mouseout", (e) => {
   popName = null;
 });
 
+// ------- hypergeometric calculator ------------------------------------------
+// P(X=k) = C(K,k)·C(N-K,n-k) / C(N,n). Log-factorials keep the binomials stable
+// for large populations.
+const _logFact = [0, 0];
+function logFact(n) {
+  for (let i = _logFact.length; i <= n; i++) _logFact[i] = _logFact[i - 1] + Math.log(i);
+  return _logFact[n];
+}
+const logChoose = (a, b) =>
+  (b < 0 || b > a) ? -Infinity : logFact(a) - logFact(b) - logFact(a - b);
+function hyperPmf(N, K, n, k) {
+  if (k < 0 || k > K || k > n || n - k > N - K) return 0;
+  const lp = logChoose(K, k) + logChoose(N - K, n - k) - logChoose(N, n);
+  return lp === -Infinity ? 0 : Math.exp(lp);
+}
+// prob at k, or cumulative P(X >= k) when `cum`.
+function hyperProb(N, K, n, k, cum) {
+  if (N < 1 || K < 0 || n < 0 || K > N || n > N) return 0;
+  if (!cum) return hyperPmf(N, K, n, k);
+  let s = 0;
+  const hi = Math.min(n, K);
+  for (let j = Math.max(0, k); j <= hi; j++) s += hyperPmf(N, K, n, j);
+  return s;
+}
+
+// Generic chart: exact-probability bars + cumulative (P≥) line over an index
+// 0..M, on a fixed 0-100% axis, with the current index highlighted. `pmf`/`cum`
+// are the two series; `ticks` are the x-values to label; `xLabel` names the axis.
+function drawProbChart(pmf, cum, curIdx, xLabel, ticks) {
+  const M = pmf.length - 1;
+  const W = 424, H = 160, padL = 30, padR = 6, padT = 22, padB = 26;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const bw = plotW / (M + 1);
+  const x0 = padL, yBase = padT + plotH;
+  const y = (v) => yBase - Math.min(v, 1) * plotH;   // fixed 0..1 (=0..100%) scale
+  const xTick = (i) => x0 + (i + 0.5) * bw;          // bar/point centre
+  let bars = "";
+  for (let i = 0; i <= M; i++) {
+    const yv = y(pmf[i]);
+    bars += `<rect x="${(x0 + i * bw).toFixed(1)}" y="${yv.toFixed(1)}" ` +
+      `width="${Math.max(bw - 0.6, 0.7).toFixed(2)}" height="${(yBase - yv).toFixed(1)}" ` +
+      `fill="${i === curIdx ? "var(--hot)" : "#3a4552"}">` +
+      `<title>${i}: exact ${(pmf[i] * 100).toFixed(2)}%, cumulative ${(cum[i] * 100).toFixed(2)}%</title></rect>`;
+  }
+  const pts = cum.map((v, i) => `${xTick(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const dotX = xTick(curIdx), dotY = y(cum[curIdx] || 0);
+  // horizontal gridlines at 0/25/50/75/100%
+  let grid = "";
+  for (let p = 0; p <= 100; p += 25) {
+    const gy = y(p / 100);
+    grid += `<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" ` +
+      `stroke="var(--line)" stroke-opacity="${p === 0 ? 1 : 0.5}"/>` +
+      `<text class="axl" x="${padL - 4}" y="${(gy + 3).toFixed(1)}" text-anchor="end">${p}%</text>`;
+  }
+  const xlabels = ticks.filter((t) => t >= 0 && t <= M).map((t) =>
+    `<text class="axl" x="${xTick(t).toFixed(1)}" y="${(yBase + 11).toFixed(1)}" text-anchor="middle">${t}</text>`).join("");
+  const legend =
+    `<rect x="${padL}" y="4" width="9" height="9" fill="#3a4552"/>` +
+    `<text class="axl" x="${padL + 13}" y="12">P(X=k) exact</text>` +
+    `<line x1="${padL + 96}" y1="8.5" x2="${padL + 112}" y2="8.5" stroke="var(--side)" stroke-width="2"/>` +
+    `<text class="axl" x="${padL + 116}" y="12">P(X≥k) cumulative</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="probability chart">` +
+    grid + bars +
+    `<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${yBase}" stroke="var(--line)"/>` +
+    `<polyline points="${pts}" fill="none" stroke="var(--side)" stroke-width="1.6"/>` +
+    `<circle cx="${dotX.toFixed(1)}" cy="${dotY.toFixed(1)}" r="2.6" fill="var(--side)"/>` +
+    legend + xlabels +
+    `<text class="axl" x="${(padL + plotW / 2).toFixed(0)}" y="${H - 2}" text-anchor="middle">${xLabel}</text>` +
+    `</svg>`;
+}
+
+// Chart 1: probability as K (successes in population) varies 0..N, with n/k fixed.
+function chartVaryK(N, n, k, curK) {
+  const cap = Math.min(N, 400);                 // guard against a runaway N
+  const pmf = [], cum = [];
+  for (let K = 0; K <= cap; K++) {
+    pmf.push(hyperProb(N, K, n, k, false));
+    cum.push(hyperProb(N, K, n, k, true));
+  }
+  const ticks = [...new Set([0, curK, cap])];
+  return drawProbChart(pmf, cum, curK, "K — successes in population", ticks);
+}
+// Chart 2: probability as k (successes in the sample) varies 0..n, with N/K/n fixed.
+function chartVaryk(N, K, n, curk) {
+  const pmf = [], cum = [];
+  for (let k = 0; k <= n; k++) {
+    pmf.push(hyperProb(N, K, n, k, false));
+    cum.push(hyperProb(N, K, n, k, true));
+  }
+  const ticks = n <= 15 ? pmf.map((_, i) => i) : [...new Set([0, curk, n])];
+  return drawProbChart(pmf, cum, curk, "k — successes in sample", ticks);
+}
+
+function renderOdds() {
+  const val = (id, min) => Math.max(min, Math.round(+el(id).value || 0));
+  const N = val("odN", 1), K = val("odK", 0), n = val("odn", 0), k = val("odk", 0);
+  const res = el("oddsResult"), chart = el("oddsChart"), chart2 = el("oddsChart2");
+  if (K > N || n > N) {
+    res.innerHTML = `<span class="err">Need K ≤ N and n ≤ N.</span>`;
+    chart.innerHTML = chart2.innerHTML = "";
+    return;
+  }
+  const ge = hyperProb(N, K, n, k, true);              // P(X ≥ k)
+  const pct = (p) => `${(Math.min(1, Math.max(0, p)) * 100).toFixed(2)}%`;
+  const rows = [
+    ["", `P(X &lt; ${k})`, 1 - ge],
+    ["eq", `P(X = ${k})`, hyperProb(N, K, n, k, false)],
+    ["ge", `P(X ≥ ${k})`, ge],
+    ["", `P(X &gt; ${k})`, hyperProb(N, K, n, k + 1, true)],
+  ];
+  res.innerHTML = rows.map(([cls, lab, p]) =>
+    `<div class="orow ${cls}"><span class="olab">${lab}</span><span class="oval">${pct(p)}</span></div>`
+  ).join("");
+  chart.innerHTML = chartVaryK(N, n, k, K);
+  chart2.innerHTML = chartVaryk(N, K, n, k);
+}
+function initOdds() {
+  const modal = el("oddsModal");
+  const toggle = (show) => { modal.hidden = !show; if (show) renderOdds(); };
+  el("oddsBtn").addEventListener("click", () => toggle(modal.hidden));
+  el("oddsClose").addEventListener("click", () => toggle(false));
+  ["odN", "odK", "odn", "odk"].forEach((id) =>
+    el(id).addEventListener("input", renderOdds));
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") toggle(false); });
+}
+
+initOdds();
 initStockEditor();
 renderStockFull();
 el("refresh").addEventListener("click", () => load(true));
