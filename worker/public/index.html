@@ -1101,19 +1101,24 @@ function niceScale(m) {
 function drawProbChart(pmf, cum, curIdx, xLabel, ticks, opts) {
   const showCum = !opts || opts.showCum !== false;
   const xVal = (opts && opts.xVal) || ((i) => i);
+  // dualAxis: bars on the left axis, cumulative line on its own right axis, each
+  // fit to its own range so small bar differences aren't dwarfed by the line.
+  const dual = showCum && opts && opts.dualAxis;
   const M = pmf.length - 1;
-  const W = 424, H = 160, padL = 30, padR = 6, padT = 22, padB = 26;
+  const W = 424, H = 160, padL = 30, padR = dual ? 34 : 6, padT = 22, padB = 26;
   const plotW = W - padL - padR, plotH = H - padT - padB;
   const bw = plotW / (M + 1);
   const x0 = padL, yBase = padT + plotH;
-  // Fit the y-axis to the displayed values: find the largest plotted value and
+  // Fit each y-axis to the values it shows: find the largest plotted value and
   // round up to a "nice" ceiling (with a nice gridline step) so the bars fill
   // the plot instead of hugging the bottom of a fixed 0-100% scale.
-  let dataMax = 0;
-  for (const v of pmf) if (v > dataMax) dataMax = v;
-  if (showCum) for (const v of cum) if (v > dataMax) dataMax = v;
-  const { max: yMax, step: yStep } = niceScale(dataMax);
-  const y = (v) => yBase - Math.min(v, yMax) / yMax * plotH;
+  let barMax = 0, cumMax = 0;
+  for (const v of pmf) if (v > barMax) barMax = v;
+  if (showCum) for (const v of cum) if (v > cumMax) cumMax = v;
+  const { max: yMax, step: yStep } = niceScale(dual ? barMax : Math.max(barMax, showCum ? cumMax : 0));
+  const rs = dual ? niceScale(cumMax) : null;                 // right-axis scale
+  const y = (v) => yBase - Math.min(v, yMax) / yMax * plotH;  // left axis (bars)
+  const yR = dual ? (v) => yBase - Math.min(v, rs.max) / rs.max * plotH : y;  // right axis (cum)
   const xTick = (i) => x0 + (i + 0.5) * bw;          // bar/point centre
   let bars = "";
   for (let i = 0; i <= M; i++) {
@@ -1124,15 +1129,21 @@ function drawProbChart(pmf, cum, curIdx, xLabel, ticks, opts) {
       `fill="${i === curIdx ? "var(--hot)" : "#3a4552"}">` +
       `<title>${xVal(i)}: exact ${(pmf[i] * 100).toFixed(2)}%${cumTip}</title></rect>`;
   }
-  const pts = showCum ? cum.map((v, i) => `${xTick(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ") : "";
-  const dotX = xTick(curIdx), dotY = y((showCum && cum[curIdx]) || 0);
-  // horizontal gridlines at each nice step up to yMax
+  const pts = showCum ? cum.map((v, i) => `${xTick(i).toFixed(1)},${yR(v).toFixed(1)}`).join(" ") : "";
+  const dotX = xTick(curIdx), dotY = yR((showCum && cum[curIdx]) || 0);
+  // left-axis gridlines + labels at each nice step up to yMax
   let grid = "";
   for (let g = 0; g <= yMax + 1e-9; g += yStep) {
     const gy = y(g);
     grid += `<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" ` +
       `stroke="var(--line)" stroke-opacity="${g === 0 ? 1 : 0.5}"/>` +
       `<text class="axl" x="${padL - 4}" y="${(gy + 3).toFixed(1)}" text-anchor="end">${+(g * 100).toFixed(2)}%</text>`;
+  }
+  // right-axis labels (cumulative scale), coloured to match the line
+  let rgrid = "";
+  if (dual) for (let g = 0; g <= rs.max + 1e-9; g += rs.step) {
+    rgrid += `<text class="axl" x="${(W - padR + 4).toFixed(1)}" y="${(yR(g) + 3).toFixed(1)}" ` +
+      `text-anchor="start" fill="var(--side)">${+(g * 100).toFixed(2)}%</text>`;
   }
   const xlabels = ticks.filter((t) => t >= 0 && t <= M).map((t) =>
     `<text class="axl" x="${xTick(t).toFixed(1)}" y="${(yBase + 11).toFixed(1)}" text-anchor="middle">${xVal(t)}</text>`).join("");
@@ -1148,8 +1159,9 @@ function drawProbChart(pmf, cum, curIdx, xLabel, ticks, opts) {
       `<circle cx="${dotX.toFixed(1)}" cy="${dotY.toFixed(1)}" r="2.6" fill="var(--side)"/>`
     : "";
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="probability chart">` +
-    grid + bars +
+    grid + rgrid + bars +
     `<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${yBase}" stroke="var(--line)"/>` +
+    (dual ? `<line x1="${W - padR}" y1="${padT}" x2="${W - padR}" y2="${yBase}" stroke="var(--side)" stroke-opacity="0.5"/>` : "") +
     cumLine +
     legend + xlabels +
     `<text class="axl" x="${(padL + plotW / 2).toFixed(0)}" y="${H - 2}" text-anchor="middle">${xLabel}</text>` +
@@ -1169,7 +1181,7 @@ function chartVaryK(N, n, k, curK) {
   }
   const ticks = pmf.map((_, i) => i);           // label every bar
   return drawProbChart(pmf, cum, curK - lo, "K — successes in population", ticks,
-    { xVal: (i) => lo + i });
+    { xVal: (i) => lo + i, dualAxis: true });
 }
 // Chart 2: probability as k (successes in the sample) varies 0..n, with N/K/n
 // fixed. Exact bars only — no cumulative line.
