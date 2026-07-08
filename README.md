@@ -69,6 +69,64 @@ self-canceling mana shuffle (`+1 Mountain`, `+1 Steam Vents`, `-2 Fetchland`)
 disappears when the real diffs already balance, but a `-1 Consign to Memory`
 that makes room for a `+2 Tormod's Crypt` still shows.
 
+## Meta swaps (auto-applied)
+
+On every load, after diffing all lists against the stock list, the page checks
+each zone (**maindeck and sideboard**) for a **swap that has taken over the
+majority**: a brand-new card that **more than 50%** of the scraped lists now
+run. When one is found:
+
+- A **notification banner** at the top announces it in the same diff format used
+  per deck — e.g. `MD +1 Flashback` (md-added colour) *replaces* `-1 Mutagenic
+  Growth` (md-removed colour), or `SB +1 Into the Flood Maw` *replaces*
+  `-1 Prismari Charm`, each with the adoption count (`18/30 lists, 60%`).
+- The swap is **folded into the stock list**: the new card is added (as a
+  tolerant `size (0-size)` flex slot) and a slot is freed **without cutting a
+  card the field still plays**. The swap-out is chosen as an *abandoned* stock
+  card (now in ≤50% of lists) if one exists; otherwise the lowest-prevalence
+  **over-provisioned** card — one whose nominal exceeds its **mode** (most common
+  count) — is trimmed toward its mode. E.g. Consign to Memory is nominally
+  `4 (3-4)` but its mode is 3, so it trims to `3 (3-4)` to make room for Into the
+  Flood Maw; Prismari Charm (run in 19/30) is left alone. This keeps the zone
+  balanced (60 maindeck / 15 sideboard). The diffs, digest, and top stock display
+  all re-render against the updated list.
+
+The swap itself is recomputed fresh each load from live data and is **not**
+persisted — if the meta shifts back, the swap stops being applied. A manual edit
+via the stock editor becomes the base the swap folds into.
+
+### Version history (shared, server-side)
+
+Each time the effective (post-swap) stock list **changes**, that version is
+appended to a timeline stamped with the date/time it was applied and the swaps
+that produced it, capped at 50 entries. Repeat records of an unchanged stock
+list are de-duplicated. A **history navigator** below the banner lets you cycle
+back through earlier versions (`◀` / `▶`, plus *jump to latest*); selecting an
+older version re-diffs every deck, the digest, and the stock display against it.
+
+The timeline is stored **on the Worker** in a KV namespace
+(`prowess-stock-list-history`, bound as `env.STOCK_HISTORY`) so it is **shared** —
+a brand-new visitor sees the whole history, not just their own browser's. The
+Worker computes the swaps itself (a server-side mirror of the client logic, so
+`DEFAULT_STOCK` is duplicated in `worker.js` and must be kept in sync), records a
+new version whenever the effective list changes, and returns the timeline in the
+`/decks` payload. It advances from three triggers:
+
+- **the 6-hour cron** (`crons = ["0 */6 * * *"]`) — a `scheduled()` handler that
+  re-scrapes and records even with no visitors;
+- **any fresh scrape on `/decks`** — including a visitor pressing **↻ refresh**
+  (`?refresh=1` bypasses the edge cache), which records a new version if the
+  swap has changed;
+
+A normal cached load neither re-scrapes nor writes — it serves the timeline as
+of the cached payload. The browser still mirrors the latest server timeline into
+`localStorage` (`prowess-stock-history-v1`) as an offline fallback, and computes
+the history locally if the Worker returns none.
+
+The **full stock list** is shown at the top in the same rich format as the deck
+lists — grouped by card type with mana symbols — but laid out as a **row of type
+columns** rather than the vertical hover side-panel.
+
 ## Editing the stock list
 
 The site is dedicated to Modern Izzet Prowess. The **✎ edit stock list** button

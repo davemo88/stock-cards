@@ -1,6 +1,16 @@
 name = "prowess-proxy"
 main = "worker.js"
 compatibility_date = "2026-01-01"
+# Keep the prowess-proxy.<account>.workers.dev URL working alongside the custom
+# domain (adding a route otherwise disables workers.dev by default).
+workers_dev = true
+
+# Serve the site from a custom domain (zone wtf.xyz, on this Cloudflare account).
+# custom_domain auto-provisions the DNS record + edge TLS cert. The worker still
+# also answers on prowess-proxy.<account>.workers.dev.
+routes = [
+  { pattern = "techfinder.wtf.xyz", custom_domain = true },
+]
 
 # Cached MTGGoldfish scraper: fetches an archetype page + its decklists,
 # returns parsed JSON with CORS so a static GitHub Pages site can consume it.
@@ -11,3 +21,15 @@ enabled = true
 # return the asset; everything else (e.g. "/decks") falls through to worker.js.
 [assets]
 directory = "./public"
+
+# Shared, server-side timeline of auto-swapped stock-list versions. A new
+# version is appended (with the time it was applied) whenever the effective
+# stock list changes, so a brand-new visitor sees the full history, not just
+# their own localStorage. env.STOCK_HISTORY in worker.js.
+[[kv_namespaces]]
+binding = "STOCK_HISTORY"
+id = "8d6ff80b283d4c6591e4be97fdf510f0"
+
+# Advance the history even with no visitors: re-scrape + record every 6 hours.
+[triggers]
+crons = ["0 */6 * * *"]

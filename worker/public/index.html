@@ -15,16 +15,44 @@ body { margin:0; background:var(--bg); color:var(--ink);
   font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
   cursor:var(--dart); }
 a { color:inherit; }
-header { padding:18px 24px; border-bottom:1px solid var(--line); }
+header { position:relative; padding:18px 24px; border-bottom:1px solid var(--line); }
 header h1 { margin:0 0 4px; font-size:18px; }
+.gh { position:absolute; top:16px; right:20px; color:var(--dim); display:inline-flex;
+  transition:color .1s; }
+.gh:hover { color:var(--ink); }
+.gh svg { width:24px; height:24px; fill:currentColor; display:block; }
 header .sub { color:var(--dim); font-size:12px; }
 header .sub a { color:var(--side); }
-.stockbar { padding:10px 24px; border-bottom:1px solid var(--line);
-  color:var(--dim); font-size:12px; display:flex; flex-wrap:wrap; gap:6px;
-  align-items:center; }
-.stockbar .stk { background:#1c2229; border:1px solid var(--line);
-  border-radius:4px; padding:1px 6px; color:var(--ink); }
-.stockbar code { background:#1c2229; padding:1px 5px; border-radius:4px; }
+/* Auto-detected meta swap notification (diff colours, like the deck chips). */
+.swapnote { padding:12px 24px; border-bottom:1px solid var(--line); background:#141a12; }
+.swapnote .sw-h { font-size:12px; font-weight:700; color:var(--hot); margin-bottom:8px;
+  text-transform:uppercase; letter-spacing:.04em; }
+.swapnote .swap { display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin:5px 0; }
+.swapnote .arrow { color:var(--dim); font-size:12px; }
+.swapnote .sw-zone { font-size:10px; font-weight:700; color:var(--dim); border:1px solid var(--line);
+  border-radius:4px; padding:1px 5px; letter-spacing:.04em; }
+.swapnote .sw-meta { color:var(--dim); font-size:12px; }
+.swapnote .sw-meta b { color:var(--ink); font-variant-numeric:tabular-nums; }
+/* Full stock list at the top: type-grouped columns laid out in a row. */
+.stockfull { padding:12px 24px 14px; border-bottom:1px solid var(--line); }
+.stockfull .fulltl { color:var(--dim); font-size:12px; margin-bottom:9px;
+  text-transform:uppercase; letter-spacing:.05em; }
+.stockfull .fulltl b { color:var(--ink); font-variant-numeric:tabular-nums; }
+.stockcols { display:flex; flex-wrap:wrap; gap:6px 26px; align-items:flex-start; }
+.stockcol { min-width:158px; }
+.stockcol.side { border-left:1px solid var(--line); padding-left:22px; }
+.stockcol .cardline { max-width:230px; }
+/* Stock-list version history navigator. */
+.stockhist { padding:9px 24px; border-bottom:1px solid var(--line); display:flex;
+  gap:9px; align-items:center; font-size:12px; color:var(--dim); flex-wrap:wrap; }
+.stockhist strong { color:var(--dim); }
+.stockhist button { background:#1c2229; color:var(--ink); border:1px solid var(--line);
+  border-radius:6px; padding:2px 9px; cursor:pointer; font:inherit; font-size:12px; }
+.stockhist button:hover:not(:disabled) { border-color:#3a4552; }
+.stockhist button:disabled { opacity:.4; cursor:default; }
+.stockhist .hpos { color:var(--ink); font-variant-numeric:tabular-nums; }
+.stockhist .htime { font-variant-numeric:tabular-nums; }
+.stockhist .hbadge { color:var(--hot); }
 .controls { padding:10px 24px; border-bottom:1px solid var(--line);
   display:flex; gap:14px; align-items:center; flex-wrap:wrap; font-size:12px;
   color:var(--dim); }
@@ -142,6 +170,9 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
 </style></head>
 <body>
 <header>
+  <a class="gh" href="https://github.com/davemo88/stock-cards" target="_blank"
+     rel="noopener" title="Source on GitHub" aria-label="Source on GitHub"><svg
+     viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg></a>
   <h1 id="title">Modern Izzet Prowess Techfinder</h1>
   <div class="sub"><span id="meta">loading…</span> ·
     hover a deck for the full list · fetchlands bucketed ·
@@ -150,7 +181,9 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
     <span style="color:var(--misssb)">sb added</span> /
     <span style="color:var(--side)">sb removed</span></div>
 </header>
-<div class="stockbar" id="stockbar"></div>
+<div class="swapnote" id="swapnote" hidden></div>
+<div class="stockhist" id="stockhist" hidden></div>
+<div class="stockfull" id="stockfull"></div>
 <div class="controls">
   <button id="editStock">✎ edit stock list</button>
   <button id="refresh">↻ refresh</button>
@@ -203,6 +236,7 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
 const WORKER = "/decks";                 // same-origin: page + API served by one Worker
 const ARCHETYPE = "modern-izzet-prowess";
 const STORAGE_KEY = "prowess-stock-v1";  // localStorage for the user's edited stock
+const HISTORY_KEY = "prowess-stock-history-v1";  // timeline of auto-swapped stock versions
 
 // The default stock list. A count may be a number (4), a range "2-3", or a
 // nominal + range "10 (8-10)" (nominal is what deltas are measured from).
@@ -211,10 +245,10 @@ const DEFAULT_STOCK = {
     "Thundering Falls":1, "Slickshot Show-Off":4, "Violent Urge":2,
     "Cori-Steel Cutter":4, "Mishra's Bauble":4, "Lightning Bolt":4,
     "Preordain":4, "Mutagenic Growth":4, "Steam Vents":"3 (3-4)", "Monastery Swiftspear":4,
-    "Lava Dart":4, "Fiery Islet":2, "Mountain":"2 (2-3)",
+    "Lava Dart":4, "Fiery Islet":2, "Mountain":"3 (2-3)",
     "Expressive Iteration":4, "Dragon's Rage Channeler":4,
-    // All fetchlands bucket under the "Fetchland" key. Nominal 10, allowed 8-10:
-    "Fetchland":"10 (8-10)",
+    // All fetchlands bucket under the "Fetchland" key. Nominal 9 (the mode), allowed 8-10:
+    "Fetchland":"9 (8-10)",
   },
   side: {
     "Meltdown":2, "Consign to Memory":"4 (3-4)", "Unholy Heat":"3 (2-3)",
@@ -459,7 +493,7 @@ const nominalTotal = (counts) =>
 function applyStock(s, persist) {
   STOCK = s;
   if (persist) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch (_) {} }
-  renderStockbar();
+  renderStockFull();
   renderDigest();
   render();
 }
@@ -493,18 +527,251 @@ function initStockEditor() {
   });
 }
 
-function renderStockbar() {
+// The full stock list at the top, rendered like a decklist — grouped by card
+// type with mana symbols — but laid out as a row of type columns rather than
+// the vertical hover side-panel. Shows nominal counts.
+const cmcOf = (n) => (DATA && DATA.cmc && DATA.cmc[n] != null) ? DATA.cmc[n] : 99;
+const byCmcName = (a, b) => cmcOf(a) - cmcOf(b) || a.localeCompare(b);
+function renderStockFull() {
+  const host = el("stockfull");
   const stock = currentStock();
-  const bar = el("stockbar");
-  const b = bucketStock(stock.main);
-  const md = Object.keys(b).sort()
-    .map((n) => `<span class="stk"${dc(n)}>${fmtStock(b[n])} ${esc(n)}</span>`).join("");
-  const sbB = bucketStock(stock.side);
-  const sb = Object.keys(sbB).sort()
-    .map((n) => `<span class="stk"${dc(n)}>${fmtStock(sbB[n])} ${esc(n)}</span>`).join(" ");
-  bar.innerHTML =
-    `<strong style="color:var(--ink)">Stock&nbsp;MD:</strong> ${md}` +
-    `<span>&nbsp;·&nbsp;<strong style="color:var(--ink)">SB:</strong></span> ${sb}`;
+  const mainB = bucketStock(stock.main), sideB = bucketStock(stock.side);
+  const types = (DATA && DATA.types) || {};
+  const line = (n, r) =>
+    `<div class="cardline"><span class="qty">${r.nom}</span>` +
+    `<span class="cname"${dc(n)}>${esc(n)}</span>${manaSymbols(n)}</div>`;
+  // one column per card type, in the same order as the side-panel
+  const byType = {};
+  for (const n of Object.keys(mainB)) {
+    const t = n === FETCH_BUCKET ? "Land" : (types[n] || "Other");
+    (byType[t] = byType[t] || []).push(n);
+  }
+  let cols = "";
+  for (const t of TYPE_ORDER) {
+    const names = byType[t];
+    if (!names) continue;
+    const sub = names.reduce((a, n) => a + mainB[n].nom, 0);
+    cols += `<div class="stockcol"><div class="typehdr">${TYPE_LABEL[t]} (${sub})</div>` +
+      names.sort(byCmcName).map((n) => line(n, mainB[n])).join("") + "</div>";
+  }
+  const mdTotal = Object.values(mainB).reduce((a, r) => a + r.nom, 0);
+  const sbTotal = Object.values(sideB).reduce((a, r) => a + r.nom, 0);
+  const sideCol = `<div class="stockcol side"><div class="typehdr" style="color:var(--side)">` +
+    `Sideboard (${sbTotal})</div>` +
+    Object.keys(sideB).sort(byCmcName).map((n) => line(n, sideB[n])).join("") + "</div>";
+  host.innerHTML =
+    `<div class="fulltl">Stock list — maindeck (<b>${mdTotal}</b>) · sideboard (<b>${sbTotal}</b>)</div>` +
+    `<div class="stockcols">${cols}${sideCol}</div>`;
+}
+
+// ------- meta-swap detection ------------------------------------------------
+// A "swap" = a brand-new card (maindeck OR sideboard) that a majority (>50%) of
+// the scraped lists now run. When one is found we fold it into the stock list
+// (adding the card and cutting the card most commonly dropped alongside it in
+// the same zone), so the stock list tracks the live meta. The applied swaps are
+// shown as a notification in the same diff format used for each deck.
+let APPLIED_SWAPS = [];
+// Mode (most common count, ties -> higher) and prevalence of every card across
+// a set of bucketed deck counts — the mode is the "most common value" a range's
+// nominal should represent.
+function zoneStats(bucketedCounts) {
+  const stat = {};
+  for (const bc of bucketedCounts) {
+    for (const [name, v] of Object.entries(bc)) {
+      const s = stat[name] || (stat[name] = { dist: new Map(), prev: 0, total: bucketedCounts.length });
+      if (v > 0) s.prev++;
+      s.dist.set(v, (s.dist.get(v) || 0) + 1);
+    }
+  }
+  for (const s of Object.values(stat)) {
+    const zeros = s.total - s.prev;
+    if (zeros > 0) s.dist.set(0, (s.dist.get(0) || 0) + zeros);
+    let mode = 0, best = -1;
+    for (const [v, c] of s.dist) if (c > best || (c === best && v > mode)) { best = c; mode = v; }
+    s.mode = mode;
+  }
+  return stat;
+}
+function detectSwaps() {
+  if (!DATA || !DATA.decks.length) return [];
+  const total = DATA.decks.length;
+  const stock = currentStock();
+  const perDeck = DATA.decks.map((dk) => diff(dk, false));
+  // maindeck and sideboard are scanned the same way, against their own zone.
+  const zones = [
+    { zone: "main", add: "addMain", stockB: bucketStock(stock.main),
+      stats: zoneStats(DATA.decks.map((dk) => bucket(dk.main))) },
+    { zone: "side", add: "addSide", stockB: bucketStock(stock.side),
+      stats: zoneStats(DATA.decks.map((dk) => bucket(dk.side))) },
+  ];
+
+  const swaps = [];
+  for (const z of zones) {
+    // Swap-in candidates: cards not in stock that a majority of lists run.
+    const lists = new Map();       // name -> # lists adding it
+    const counts = new Map();      // name -> Map(deckCount -> # lists)
+    perDeck.forEach((d) => {
+      for (const [name, , n, , inRange] of d[z.add]) {
+        if (inRange || z.stockB[name]) continue;   // only notable, genuinely new cards
+        lists.set(name, (lists.get(name) || 0) + 1);
+        const c = counts.get(name) || new Map();
+        c.set(n, (c.get(n) || 0) + 1);
+        counts.set(name, c);
+      }
+    });
+
+    for (const [name, nLists] of lists) {
+      if (nLists * 2 <= total) continue;           // must be run by >50%
+      // modal count run by adopters -> the swap size
+      let size = 1, best = 0;
+      for (const [n, c] of counts.get(name)) if (c > best) { best = c; size = n; }
+      // Find room WITHOUT cutting a card the field still plays: prefer an
+      // abandoned stock card (<=50%), else the lowest-prevalence card that is
+      // over-provisioned (nominal > its mode) by at least `size`. Trimming it
+      // toward its mode frees the slot (e.g. Consign to Memory 4->3, its mode).
+      let out = null, oStat = null, oNom = 0, oReason = null;
+      for (const cn of Object.keys(z.stockB)) {
+        const s = z.stats[cn] || { mode: 0, prev: 0 };
+        const nom = z.stockB[cn].nom;
+        const abandoned = s.prev * 2 <= total;
+        const capacity = abandoned ? nom : Math.max(0, nom - s.mode);
+        if (capacity < size) continue;
+        const better = !out || s.prev < oStat.prev ||
+          (s.prev === oStat.prev && (nom - s.mode) > (oNom - oStat.mode));
+        if (better) { out = cn; oStat = s; oNom = nom; oReason = abandoned ? "abandoned" : "trim"; }
+      }
+      if (!out) continue;                          // nothing safe to trim -> skip
+      swaps.push({
+        zone: z.zone, in: name, inSize: size, inLists: nLists, total,
+        out, outBefore: oNom, outAfter: oNom - size, outMode: oStat.mode,
+        outPrev: oStat.prev, reason: oReason,
+      });
+    }
+  }
+  return swaps;
+}
+
+// Fold detected swaps into a fresh copy of the stock list. Each swap acts on its
+// own zone (maindeck or sideboard). The added card gets a tolerant 0..size range
+// (a flex slot, so non-adopters aren't flagged) and the cut card's nominal drops
+// by the same amount, keeping the zone total balanced (60 MD / 15 SB).
+function applySwapsToStock(swaps) {
+  const s = cloneStock(STOCK);
+  for (const sw of swaps) {
+    const zone = s[sw.zone];
+    zone[sw.in] = `${sw.inSize} (0-${sw.inSize})`;
+    if (sw.out && zone[sw.out] != null) {
+      const cur = parseStock(zone[sw.out]);
+      const newNom = cur.nom - sw.inSize;
+      if (newNom <= 0) delete zone[sw.out];
+      else {
+        const max = Math.max(cur.max, cur.nom);
+        zone[sw.out] = newNom === max ? `${newNom}` : `${newNom} (${newNom}-${max})`;
+      }
+    }
+  }
+  return s;
+}
+
+function renderSwapNote() {
+  const host = el("swapnote");
+  if (!APPLIED_SWAPS.length) { host.hidden = true; host.innerHTML = ""; return; }
+  host.hidden = false;
+  // Same chip colours as the deck diffs: MD added/removed = main/count,
+  // SB added/removed = side/scount.
+  const rows = APPLIED_SWAPS.map((sw) => {
+    const pct = Math.round((sw.inLists / sw.total) * 100);
+    const addCls = sw.zone === "side" ? "side" : "main";
+    const remCls = sw.zone === "side" ? "scount" : "count";
+    const zoneTag = `<span class="sw-zone">${sw.zone === "side" ? "SB" : "MD"}</span>`;
+    const inChip = `<span class="chip ${addCls}"${dc(sw.in)}>+${sw.inSize} ${esc(sw.in)}</span>`;
+    // The swap-out is either a card the field abandoned or an over-provisioned
+    // card trimmed toward its most-common count (its mode).
+    const why = sw.reason === "abandoned"
+      ? ` · <b>${esc(sw.out)}</b> dropped (only ${sw.outPrev}/${sw.total} lists)`
+      : ` · <b>${esc(sw.out)}</b> trimmed ${sw.outBefore}→${sw.outAfter} (its most common count)`;
+    const outChip = sw.out
+      ? `<span class="chip ${remCls}"${dc(sw.out)}>-${sw.inSize} ${esc(sw.out)}</span>`
+      : '<span class="chip none">nothing cut</span>';
+    return `<div class="swap">${zoneTag}${inChip}<span class="arrow">replaces</span>${outChip}` +
+      `<span class="sw-meta">run in <b>${sw.inLists}/${sw.total}</b> lists (${pct}%)` +
+      (sw.out ? why : "") + "</span></div>";
+  }).join("");
+  host.innerHTML = `<div class="sw-h">⇄ Meta swap applied to the stock list</div>${rows}`;
+}
+
+// ------- stock-list version history -----------------------------------------
+// Each time the auto-swapped stock list changes, the new version is appended to
+// a persisted timeline (with the time it was applied and the swaps that made
+// it). The user can cycle back through earlier versions; the whole page then
+// re-diffs against the selected version.
+let HISTORY = [];
+let histIndex = 0;
+
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    if (raw) {
+      const h = JSON.parse(raw);
+      if (Array.isArray(h)) return h.filter((e) => e && e.stock && e.stock.main && e.stock.side);
+    }
+  } catch (_) { /* ignore */ }
+  return [];
+}
+const saveHistory = () => { try { localStorage.setItem(HISTORY_KEY, JSON.stringify(HISTORY)); } catch (_) {} };
+// Order-independent identity of a stock list, to detect real changes.
+const stockKey = (s) =>
+  JSON.stringify([Object.entries(s.main).sort(), Object.entries(s.side).sort()]);
+
+// Append a version only when the effective stock actually differs from the most
+// recent one (so repeat visits within a cache window don't pile up duplicates).
+function recordHistory(stock, swaps, time) {
+  const last = HISTORY[HISTORY.length - 1];
+  if (last && stockKey(last.stock) === stockKey(stock)) {
+    last.time = last.time || time;       // keep the earliest applied time
+    return false;
+  }
+  HISTORY.push({ time, stock: cloneStock(stock), swaps: swaps || [] });
+  if (HISTORY.length > 50) HISTORY = HISTORY.slice(-50);  // cap the log
+  saveHistory();
+  return true;
+}
+
+// Point the page at HISTORY[histIndex] and re-render everything against it.
+function viewHistory() {
+  const entry = HISTORY[histIndex];
+  if (!entry) return;
+  STOCK = cloneStock(entry.stock);
+  APPLIED_SWAPS = entry.swaps || [];
+  renderSwapNote();
+  renderStockFull();
+  renderDigest();
+  render();
+  renderHistoryNav();
+}
+
+function renderHistoryNav() {
+  const host = el("stockhist");
+  if (!HISTORY.length) { host.hidden = true; host.innerHTML = ""; return; }
+  host.hidden = false;
+  const n = HISTORY.length, i = histIndex, entry = HISTORY[i];
+  const atLatest = i === n - 1;
+  const t = new Date(entry.time).toLocaleString();
+  const nSw = (entry.swaps || []).length;
+  host.innerHTML =
+    `<strong>Stock history:</strong>` +
+    `<button id="histPrev" ${i === 0 ? "disabled" : ""} title="older version">◀</button>` +
+    `<span class="hpos">version ${i + 1} of ${n}</span>` +
+    `<button id="histNext" ${atLatest ? "disabled" : ""} title="newer version">▶</button>` +
+    `<span class="htime">· applied ${esc(t)}</span>` +
+    (nSw ? `<span class="hbadge">· ${nSw} swap${nSw > 1 ? "s" : ""}</span>`
+         : `<span>· baseline (no swap)</span>`) +
+    (atLatest ? "" : ` <button id="histLatest">jump to latest ▶▶</button>`);
+  const go = (idx) => { histIndex = Math.max(0, Math.min(n - 1, idx)); viewHistory(); };
+  const bind = (id, fn) => { const b = el(id); if (b) b.onclick = fn; };
+  bind("histPrev", () => go(histIndex - 1));
+  bind("histNext", () => go(histIndex + 1));
+  bind("histLatest", () => go(n - 1));
 }
 
 // Aggregate the notable (out-of-range) deviations across every list.
@@ -655,8 +922,23 @@ async function load(refresh) {
     DATA = await r.json();
     el("status").style.display = "none";
     el("freshness").textContent = "data as of " + new Date(DATA.generated).toLocaleString();
-    renderDigest();
-    render();
+    STOCK = loadStock();
+    if (DATA.history && DATA.history.length) {
+      // Shared, server-computed timeline (from the Worker's KV store) — a
+      // brand-new visitor sees the whole history, not just their own browser's.
+      // Mirror it to localStorage as an offline fallback.
+      HISTORY = DATA.history;
+      try { localStorage.setItem(HISTORY_KEY, JSON.stringify(HISTORY)); } catch (_) {}
+    } else {
+      // Fallback (Worker without KV, or a different archetype): compute the swap
+      // and persist the timeline locally, as before.
+      APPLIED_SWAPS = detectSwaps();
+      const effective = APPLIED_SWAPS.length ? applySwapsToStock(APPLIED_SWAPS) : cloneStock(STOCK);
+      HISTORY = loadHistory();
+      recordHistory(effective, APPLIED_SWAPS, new Date().toISOString());
+    }
+    histIndex = HISTORY.length - 1;
+    viewHistory();
   } catch (err) {
     el("status").textContent = "Failed to load: " + err.message +
       ". The Worker may be cold or rate-limited — try refresh.";
@@ -709,7 +991,7 @@ document.addEventListener("mouseout", (e) => {
 });
 
 initStockEditor();
-renderStockbar();
+renderStockFull();
 el("refresh").addEventListener("click", () => load(true));
 el("hand-redraw").addEventListener("click", renderHand);
 el("hand-close").addEventListener("click", closeHand);
