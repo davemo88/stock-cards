@@ -143,6 +143,7 @@ body.hand-open { padding-bottom:250px; }
 .col.divide { border-left:1px solid var(--line); padding-left:11px; }
 .col .chip { max-width:100%; white-space:normal; }
 .col .empty { color:#39424c; }
+.diffcard .nochange { color:#39424c; font-size:12px; font-style:italic; }
 @media (max-width:640px) { .diffcols { grid-template-columns:1fr; } }
 aside { position:sticky; top:0; width:300px; flex:none; height:100vh;
   border-left:1px solid var(--line); padding:16px; overflow:auto; }
@@ -465,11 +466,17 @@ const byMag = (arr) => arr.slice().sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]
 const diffCol = (cls, arr) => `<div class="col ${cls}">` +
   (arr.length ? arr.join("") : '<span class="empty">·</span>') + "</div>";
 function diffCard(label, add, addCls, rem, remCls) {
+  // A fully-empty zone (this deck matches stock in MD or SB) shows a single quiet
+  // note — no placeholder bullets, no divider. The `·` placeholder is kept only
+  // for a half-empty card, where it means "nothing added / nothing removed".
+  const body = (add.length || rem.length)
+    ? '<div class="cols">' +
+        diffCol("", byMag(add).map(chip(addCls))) +       // added
+        diffCol("divide", byMag(rem).map(chip(remCls))) + // removed
+      "</div>"
+    : '<div class="nochange">no changes</div>';
   return '<div class="diffcard"><div class="diffcard-label">' + label + "</div>" +
-    '<div class="cols">' +
-    diffCol("", byMag(add).map(chip(addCls))) +          // added
-    diffCol("divide", byMag(rem).map(chip(remCls))) +    // removed
-    "</div></div>";
+    body + "</div>";
 }
 function diffCols(d) {
   return '<div class="diffcols">' +

@@ -98,10 +98,16 @@ export default {
       }
     }
 
+    // Only cache a payload whose Scryfall enrichment succeeded. If it failed
+    // (rate-limit / cold worker), `types` is empty and every card would render
+    // as "Other"; caching that would poison every visitor for CACHE_TTL. Serve
+    // the degraded payload once, uncached, so the next load re-runs enrichment.
+    const enriched = payload.decks.length === 0 ||
+      Object.keys(payload.types || {}).length > 0;
     const resp = json(payload, 200, {
-      "Cache-Control": `public, max-age=${CACHE_TTL}`,
+      "Cache-Control": enriched ? `public, max-age=${CACHE_TTL}` : "no-store",
     });
-    ctx.waitUntil(cache.put(cacheKey, resp.clone()));
+    if (enriched) ctx.waitUntil(cache.put(cacheKey, resp.clone()));
     return resp;
   },
 
@@ -169,11 +175,17 @@ async function fetchCards(names) {
   for (let i = 0; i < names.length; i += 75) {
     const identifiers = names.slice(i, i + 75).map((name) => ({ name }));
     try {
-      const r = await fetch("https://api.scryfall.com/cards/collection", {
-        method: "POST",
-        headers: { "User-Agent": UA, "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ identifiers }),
-      });
+      // Retry a couple of times so a transient rate-limit doesn't leave the
+      // whole batch un-typed (which would render every card as "Other").
+      let r;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        r = await fetch("https://api.scryfall.com/cards/collection", {
+          method: "POST",
+          headers: { "User-Agent": UA, "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ identifiers }),
+        });
+        if (r.ok) break;
+      }
       if (!r.ok) continue;
       const j = await r.json();
       for (const c of j.data || []) {
