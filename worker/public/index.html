@@ -474,7 +474,7 @@ function diffCard(label, add, addCls, rem, remCls) {
         diffCol("", byMag(add).map(chip(addCls))) +       // added
         diffCol("divide", byMag(rem).map(chip(remCls))) + // removed
       "</div>"
-    : '<div class="nochange">no changes</div>';
+    : '<div class="nochange">stock</div>';
   return '<div class="diffcard"><div class="diffcard-label">' + label + "</div>" +
     body + "</div>";
 }
