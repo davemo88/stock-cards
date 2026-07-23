@@ -40,7 +40,7 @@ const historyKeyFor = (slug) =>
 // Page routes: paths (besides "/") served by the same public/index.html — the
 // page reads its archetype config from the URL. KEEP IN SYNC with ARCHETYPES
 // in public/index.html.
-const PAGE_ROUTES = new Set(["/grixis-reanimator"]);
+const PAGE_ROUTES = new Set(["/grixis-reanimator", "/eldrazi"]);
 
 // All fetchlands collapse into one bucket so mana-base fetch swaps don't flag.
 const FETCHLANDS = new Set([
@@ -84,6 +84,27 @@ const DEFAULT_STOCKS = {
       "Consign to Memory": 3, "Damping Sphere": 2, "Meltdown": 2,
       "Mystical Dispute": 2, "Pyroclasm": 2, "Surgical Extraction": 2,
       "Vexing Bauble": 2,
+    },
+  },
+  "modern-eldrazi": {
+    main: {
+      "Basking Broodscale": 3, "Glaring Fleshraker": 4, "Thought-Knot Seer": 2,
+      "Writhing Chrysalis": 2, "Thief of Existence": 1,
+      "Emrakul, the Promised End": 4,
+      "Kozilek's Command": 4, "Malevolent Rumble": 4, "Ancient Stirrings": 2,
+      "Dismember": 1, "Unholy Heat": 2,
+      "Blade of the Bloodchief": 2, "Springleaf Drum": 1, "Pithing Needle": 1,
+      "Vexing Bauble": 2, "Haywire Mite": 1,
+      "Urza's Saga": 4, "Eldrazi Temple": 4, "Grove of the Burnwillows": 4,
+      "Ugin's Labyrinth": 2, "Boseiju, Who Endures": 2, "Forest": 3,
+      "Stomping Ground": 1, "Commercial District": 1,
+      "Fetchland": 3,
+    },
+    side: {
+      "Thought-Knot Seer": 1, "Basking Broodscale": 1, "Writhing Chrysalis": 1,
+      "Thief of Existence": 1, "Nature's Claim": 2, "Firespout": 2,
+      "Disruptor Flute": 1, "Grafdigger's Cage": 1, "Soul-Guide Lantern": 1,
+      "Blade of the Bloodchief": 1, "Gemstone Caverns": 1, "Cavern of Souls": 2,
     },
   },
 };

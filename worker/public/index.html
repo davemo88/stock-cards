@@ -420,6 +420,37 @@ const ARCHETYPES = {
       },
     },
   },
+  "modern-eldrazi": {
+    path: "/eldrazi", tab: "Eldrazi",
+    title: "Modern Eldrazi Techfinder",
+    icon: "Emrakul, the Promised End",
+    storageKey: "eldrazi-stock-v1",
+    historyKey: "eldrazi-stock-history-v1",
+    // From the card breakdown on the MTGGoldfish archetype homepage
+    // (mtggoldfish.com/archetype/modern-eldrazi), 60 MD / 15 SB.
+    stock: {
+      main: {
+        "Basking Broodscale":3, "Glaring Fleshraker":4, "Thought-Knot Seer":2,
+        "Writhing Chrysalis":2, "Thief of Existence":1,
+        "Emrakul, the Promised End":4,
+        "Kozilek's Command":4, "Malevolent Rumble":4, "Ancient Stirrings":2,
+        "Dismember":1, "Unholy Heat":2,
+        "Blade of the Bloodchief":2, "Springleaf Drum":1, "Pithing Needle":1,
+        "Vexing Bauble":2, "Haywire Mite":1,
+        "Urza's Saga":4, "Eldrazi Temple":4, "Grove of the Burnwillows":4,
+        "Ugin's Labyrinth":2, "Boseiju, Who Endures":2, "Forest":3,
+        "Stomping Ground":1, "Commercial District":1,
+        // 1 Windswept Heath + 1 Misty Rainforest + 1 Verdant Catacombs:
+        "Fetchland":3,
+      },
+      side: {
+        "Thought-Knot Seer":1, "Basking Broodscale":1, "Writhing Chrysalis":1,
+        "Thief of Existence":1, "Nature's Claim":2, "Firespout":2,
+        "Disruptor Flute":1, "Grafdigger's Cage":1, "Soul-Guide Lantern":1,
+        "Blade of the Bloodchief":1, "Gemstone Caverns":1, "Cavern of Souls":2,
+      },
+    },
+  },
 };
 
 const pagePath = location.pathname.replace(/\/+$/, "") || "/";

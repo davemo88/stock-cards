@@ -6,7 +6,7 @@ A Cloudflare Worker that scans MTGGoldfish Modern archetype pages for recent
 decklists and highlights cards that deviate from a **stock list**. The Worker
 both serves the static page and provides the data API — one deploy, one URL.
 
-Two archetype tabs, both served by the same `index.html` (the page picks its
+Three archetype tabs, all served by the same `index.html` (the page picks its
 config from the URL path):
 
 - **Izzet Prowess** at `/` — scrapes
@@ -15,6 +15,10 @@ config from the URL path):
 - **Grixis Reanimator** at `/grixis-reanimator` — scrapes
   [modern-grixis-reanimator](https://www.mtggoldfish.com/archetype/modern-grixis-reanimator);
   its stock list comes from the card breakdown on that archetype homepage.
+- **Eldrazi** at `/eldrazi` — scrapes
+  [modern-eldrazi](https://www.mtggoldfish.com/archetype/modern-eldrazi)
+  (the Broodscale build; MTGGoldfish tracks Eldrazi Ramp separately); stock
+  list from that archetype homepage's card breakdown.
 
 Per-archetype config (slug, title, stock list, localStorage keys) lives in the
 `ARCHETYPES` map in `worker/public/index.html`; the server-side stock copies
