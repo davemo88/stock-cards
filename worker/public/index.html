@@ -1,8 +1,8 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Modern Izzet Prowess Techfinder</title>
-<link rel="icon" href="https://api.scryfall.com/cards/named?exact=Lava%20Dart&format=image&version=art_crop">
+<title>Modern Techfinder</title>
+<link rel="icon" id="favicon" href="https://api.scryfall.com/cards/named?exact=Lava%20Dart&format=image&version=art_crop">
 <style>
 :root {
   --bg:#0f1216; --card:#171c22; --line:#252c34; --ink:#e6e9ee; --dim:#8b95a1;
@@ -17,10 +17,51 @@ body { margin:0; background:var(--bg); color:var(--ink);
 a { color:inherit; }
 header { position:relative; padding:18px 24px; border-bottom:1px solid var(--line); }
 header h1 { margin:0 0 4px; font-size:18px; }
+/* Archetype tabs — one page per archetype, served by the same index.html. */
+.tabs { display:flex; gap:6px; margin-bottom:10px; }
+.tabs a { text-decoration:none; font-size:12px; font-weight:600; color:var(--dim);
+  border:1px solid var(--line); border-bottom-color:var(--line); border-radius:7px 7px 0 0;
+  padding:4px 12px; background:#12161b; }
+.tabs a:hover { color:var(--ink); border-color:#3a4552; }
+.tabs a.active { color:var(--hot); background:var(--card); border-color:#5a4626; }
 .gh { position:absolute; top:16px; right:20px; color:var(--dim); display:inline-flex;
   transition:color .1s; }
 .gh:hover { color:var(--ink); }
 .gh svg { width:24px; height:24px; fill:currentColor; display:block; }
+/* "Find events" button in the header, next to the GitHub link. */
+.findev { position:absolute; top:16px; right:56px; background:#1c2229; color:var(--ink);
+  border:1px solid var(--line); border-radius:6px; padding:3px 12px; cursor:pointer;
+  font:inherit; font-size:12px; }
+.findev:hover { border-color:#3a4552; }
+/* Nearby-events modal (same floating style as the odds calculator). */
+#eventsModal { position:fixed; z-index:2100; top:50%; left:calc((100vw - 300px) / 2);
+  transform:translate(-50%,-50%); width:760px; max-width:calc(100vw - 340px);
+  max-height:82vh; display:flex; flex-direction:column;
+  background:var(--card); border:1px solid var(--line); border-radius:12px;
+  box-shadow:0 18px 60px rgba(0,0,0,.6); padding:16px 18px 18px; }
+#eventsModal[hidden] { display:none; }
+.ev-form { display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+  margin-bottom:10px; font-size:12px; color:var(--dim); }
+.ev-form button, .ev-form select { background:#1c2229; color:var(--ink);
+  border:1px solid var(--line); border-radius:6px; padding:4px 10px; cursor:pointer;
+  font:inherit; font-size:12px; }
+.ev-form button:hover, .ev-form select:hover { border-color:#3a4552; }
+.ev-form input { background:#0d1015; color:var(--ink); border:1px solid var(--line);
+  border-radius:6px; padding:4px 8px; font:inherit; font-size:12px; width:76px; }
+.ev-form input:focus { outline:none; border-color:#3a4552; }
+.ev-status { font-size:12px; color:var(--dim); margin-bottom:8px; }
+.ev-status:empty { display:none; }
+.ev-results { overflow:auto; }
+.ev-results table { width:100%; border-collapse:collapse; font-size:12px; }
+.ev-results th { text-align:left; color:var(--dim); font-size:10px;
+  text-transform:uppercase; letter-spacing:.05em; padding:4px 8px;
+  border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--card); }
+.ev-results td { padding:5px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+.ev-results a { color:var(--side); text-decoration:none; }
+.ev-results a:hover { text-decoration:underline; }
+.ev-when { white-space:nowrap; color:var(--ink); font-variant-numeric:tabular-nums; }
+.ev-fee, .ev-mi { text-align:right; font-variant-numeric:tabular-nums; color:var(--dim);
+  white-space:nowrap; }
 header .sub { color:var(--dim); font-size:12px; }
 header .sub a { color:var(--side); }
 /* Auto-detected meta swap notification (diff colours, like the deck chips). */
@@ -214,14 +255,16 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
 .odds-chart svg { display:block; width:100%; height:auto; }
 .odds-chart .axl { fill:var(--dim); font-size:9px; }
 @media (max-width:820px) { aside { display:none; } #handpanel { right:0; }
-  #oddsModal { left:50%; max-width:calc(100vw - 28px); } }
+  #oddsModal, #eventsModal { left:50%; max-width:calc(100vw - 28px); } }
 </style></head>
 <body>
 <header>
   <a class="gh" href="https://github.com/davemo88/stock-cards" target="_blank"
      rel="noopener" title="Source on GitHub" aria-label="Source on GitHub"><svg
      viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg></a>
-  <h1 id="title">Modern Izzet Prowess Techfinder</h1>
+  <button class="findev" id="findEvents" title="Find nearby Modern events (WotC event locator)">📍 find events</button>
+  <nav class="tabs" id="tabs"></nav>
+  <h1 id="title">Modern Techfinder</h1>
   <div class="sub"><span id="meta">loading…</span> ·
     hover a deck for the full list ·
     <span style="color:var(--hot)">md added</span> /
@@ -281,6 +324,27 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
   <div class="hand-cards" id="hand-cards"></div>
 </div>
 
+<div id="eventsModal" hidden>
+  <div class="odds-head">
+    <strong>Modern events nearby</strong>
+    <button id="evClose" title="close">✕</button>
+  </div>
+  <div class="ev-form">
+    <button id="evLocate">📍 use my location</button>
+    <span>or ZIP</span>
+    <input id="evZip" inputmode="numeric" placeholder="e.g. 11215" maxlength="10">
+    <span>within</span>
+    <select id="evDist">
+      <option>5</option><option selected>10</option><option>25</option>
+      <option>50</option><option>100</option>
+    </select>
+    <span>mi</span>
+    <button id="evSearch">Search</button>
+  </div>
+  <div class="ev-status" id="evStatus"></div>
+  <div class="ev-results" id="evResults"></div>
+</div>
+
 <div id="oddsModal" hidden>
   <div class="odds-head">
     <strong>Hypergeometric calculator</strong>
@@ -302,27 +366,77 @@ aside h2 { font-size:13px; margin:0 0 10px; color:var(--dim);
 <script>
 // ------- config -------------------------------------------------------------
 const WORKER = "/decks";                 // same-origin: page + API served by one Worker
-const ARCHETYPE = "modern-izzet-prowess";
-const STORAGE_KEY = "prowess-stock-v1";  // localStorage for the user's edited stock
-const HISTORY_KEY = "prowess-stock-history-v1";  // timeline of auto-swapped stock versions
 
-// The default stock list. A count may be a number (4), a range "2-3", or a
-// nominal + range "10 (8-10)" (nominal is what deltas are measured from).
-const DEFAULT_STOCK = {
-  main: {
-    "Thundering Falls":1, "Slickshot Show-Off":4, "Violent Urge":2,
-    "Cori-Steel Cutter":4, "Mishra's Bauble":4, "Lightning Bolt":4,
-    "Preordain":4, "Mutagenic Growth":4, "Steam Vents":"3 (3-4)", "Monastery Swiftspear":4,
-    "Lava Dart":4, "Fiery Islet":2, "Mountain":"3 (2-3)",
-    "Expressive Iteration":4, "Dragon's Rage Channeler":4,
-    // All fetchlands bucket under the "Fetchland" key. Nominal 9 (the mode), allowed 8-10:
-    "Fetchland":"9 (8-10)",
+// One entry per archetype tab. The same index.html serves every tab; the Worker
+// maps each `path` to this file and the page picks its config from the URL.
+// A stock count may be a number (4), a range "2-3", or a nominal + range
+// "10 (8-10)" (nominal is what deltas are measured from). KEEP the stock lists
+// IN SYNC with DEFAULT_STOCKS in worker.js (the server-side copy).
+const ARCHETYPES = {
+  "modern-izzet-prowess": {
+    path: "/", tab: "Izzet Prowess", title: "Modern Izzet Prowess Techfinder",
+    icon: "Lava Dart",
+    storageKey: "prowess-stock-v1",           // localStorage for the user's edited stock
+    historyKey: "prowess-stock-history-v1",   // timeline of auto-swapped stock versions
+    stock: {
+      main: {
+        "Thundering Falls":1, "Slickshot Show-Off":4, "Violent Urge":2,
+        "Cori-Steel Cutter":4, "Mishra's Bauble":4, "Lightning Bolt":4,
+        "Preordain":4, "Mutagenic Growth":4, "Steam Vents":"3 (3-4)", "Monastery Swiftspear":4,
+        "Lava Dart":4, "Fiery Islet":2, "Mountain":"3 (2-3)",
+        "Expressive Iteration":4, "Dragon's Rage Channeler":4,
+        // All fetchlands bucket under the "Fetchland" key. Nominal 9 (the mode), allowed 8-10:
+        "Fetchland":"9 (8-10)",
+      },
+      side: {
+        "Meltdown":2, "Consign to Memory":"4 (3-4)", "Unholy Heat":"3 (2-3)",
+        "Spell Pierce":2, "Murktide Regent":1, "Tormod's Crypt":"2 (1-3)", "Prismari Charm":1,
+      },
+    },
   },
-  side: {
-    "Meltdown":2, "Consign to Memory":"4 (3-4)", "Unholy Heat":"3 (2-3)",
-    "Spell Pierce":2, "Murktide Regent":1, "Tormod's Crypt":"2 (1-3)", "Prismari Charm":1,
+  "modern-grixis-reanimator": {
+    path: "/grixis-reanimator", tab: "Grixis Reanimator",
+    title: "Modern Grixis Reanimator Techfinder",
+    icon: "Archon of Cruelty",
+    storageKey: "grixis-reanimator-stock-v1",
+    historyKey: "grixis-reanimator-stock-history-v1",
+    // From the card breakdown on the MTGGoldfish archetype homepage
+    // (mtggoldfish.com/archetype/modern-grixis-reanimator), 60 MD / 15 SB.
+    stock: {
+      main: {
+        "Abhorrent Oculus":4, "Archon of Cruelty":4, "Emperor of Bones":3,
+        "Psychic Frog":4,
+        "Faithless Looting":4, "Fatal Push":4, "Inquisition of Kozilek":2,
+        "Persist":4, "Thought Scour":4, "Thoughtseize":4, "Unearth":4,
+        "Blood Crypt":1, "Darkslick Shores":1, "Island":1, "Raucous Theater":1,
+        "Steam Vents":1, "Swamp":2, "Undercity Sewers":1, "Watery Grave":2,
+        // 4 Bloodstained Mire + 4 Polluted Delta + 1 Marsh Flats in the breakdown:
+        "Fetchland":"9 (8-10)",
+      },
+      side: {
+        "Consign to Memory":3, "Damping Sphere":2, "Meltdown":2,
+        "Mystical Dispute":2, "Pyroclasm":2, "Surgical Extraction":2,
+        "Vexing Bauble":2,
+      },
+    },
   },
 };
+
+const pagePath = location.pathname.replace(/\/+$/, "") || "/";
+const ARCHETYPE = (Object.keys(ARCHETYPES).find((k) => ARCHETYPES[k].path === pagePath)
+  || Object.keys(ARCHETYPES)[0]);
+const CFG = ARCHETYPES[ARCHETYPE];
+const STORAGE_KEY = CFG.storageKey;
+const HISTORY_KEY = CFG.historyKey;
+const DEFAULT_STOCK = CFG.stock;
+
+// Brand the page for the selected archetype and render the tab bar.
+document.title = CFG.title;
+document.getElementById("title").textContent = CFG.title;
+document.getElementById("favicon").href =
+  `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(CFG.icon)}&format=image&version=art_crop`;
+document.getElementById("tabs").innerHTML = Object.values(ARCHETYPES).map((c) =>
+  `<a href="${c.path}" class="${c === CFG ? "active" : ""}">${c.tab}</a>`).join("");
 
 const cloneStock = (s) => ({ main: { ...s.main }, side: { ...s.side } });
 function loadStock() {
@@ -1223,6 +1337,89 @@ function renderOdds() {
   chart.innerHTML = chartVaryK(N, n, k, K);
   chart2.innerHTML = chartVaryk(N, K, n, k);
 }
+// ------- nearby Modern events (WotC event locator) --------------------------
+// The Worker's /events route proxies locator.wizards.com's backing API: browser
+// geolocation (or a US ZIP, geocoded server-side) -> Modern-format events near
+// that point, rendered as a table.
+function renderEvents(j, label) {
+  const status = el("evStatus"), results = el("evResults");
+  if (!j.events.length) {
+    status.textContent = `No Modern events within ${j.miles} mi of ${label}. Try a wider radius.`;
+    results.innerHTML = "";
+    return;
+  }
+  status.textContent = `${j.count} Modern event${j.count > 1 ? "s" : ""} within ` +
+    `${j.miles} mi of ${label}` + (j.total > j.count ? ` (first ${j.count} of ${j.total})` : "") +
+    ", soonest first:";
+  const rows = j.events.map((e) => {
+    const when = new Date(e.time).toLocaleString([], {
+      weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+    });
+    const addr = [e.address, e.city, e.state, e.zip].filter(Boolean).join(", ");
+    const maps = "https://www.google.com/maps/search/?api=1&query=" +
+      encodeURIComponent((e.store ? e.store + " " : "") + addr);
+    const store = e.website
+      ? `<a href="${esc(e.website)}" target="_blank" rel="noopener">${esc(e.store)}</a>`
+      : esc(e.store);
+    const fee = e.fee && e.fee.amount
+      ? `$${(e.fee.amount / 100).toFixed(2).replace(/\.00$/, "")}` : "–";
+    return `<tr><td class="ev-when">${esc(when)}</td><td>${esc(e.title)}</td>` +
+      `<td>${store}</td>` +
+      `<td><a href="${esc(maps)}" target="_blank" rel="noopener" title="open in Google Maps">${esc(addr)}</a></td>` +
+      `<td class="ev-fee">${esc(fee)}</td><td class="ev-mi">${e.milesAway}</td></tr>`;
+  }).join("");
+  results.innerHTML =
+    `<table><thead><tr><th>When</th><th>Event</th><th>Shop</th><th>Address</th>` +
+    `<th>Fee</th><th>Mi</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function initEvents() {
+  const modal = el("eventsModal"), status = el("evStatus"), results = el("evResults");
+  const toggle = (show) => {
+    modal.hidden = !show;
+    // First open: go straight for geolocation (the browser prompts); a decline
+    // leaves the ZIP form as the fallback.
+    if (show && !results.innerHTML && !status.textContent) locate();
+  };
+  const search = async (params, label) => {
+    const dist = el("evDist").value;
+    status.textContent = `searching Modern events within ${dist} mi of ${label}…`;
+    results.innerHTML = "";
+    try {
+      const r = await fetch(`/events?${params}&dist=${encodeURIComponent(dist)}`);
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.detail || j.error || `HTTP ${r.status}`);
+      renderEvents(j, label);
+    } catch (err) {
+      status.textContent = `Search failed: ${err.message}`;
+    }
+  };
+  const locate = () => {
+    if (!navigator.geolocation) {
+      status.textContent = "This browser has no geolocation — enter a ZIP code instead.";
+      return;
+    }
+    status.textContent = "requesting your location…";
+    navigator.geolocation.getCurrentPosition(
+      (pos) => search(
+        `lat=${pos.coords.latitude.toFixed(4)}&lng=${pos.coords.longitude.toFixed(4)}`,
+        "your location"),
+      () => { status.textContent = "Location declined — enter a ZIP code instead."; },
+      { timeout: 12000 },
+    );
+  };
+  const zipSearch = () => {
+    const z = el("evZip").value.trim();
+    if (!z) { status.textContent = "Enter a ZIP code (or use 📍 use my location)."; return; }
+    search(`zip=${encodeURIComponent(z)}`, `ZIP ${z}`);
+  };
+  el("findEvents").addEventListener("click", () => toggle(modal.hidden));
+  el("evClose").addEventListener("click", () => toggle(false));
+  el("evLocate").addEventListener("click", locate);
+  el("evSearch").addEventListener("click", zipSearch);
+  el("evZip").addEventListener("keydown", (e) => { if (e.key === "Enter") zipSearch(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") modal.hidden = true; });
+}
+
 function initOdds() {
   const modal = el("oddsModal");
   const toggle = (show) => { modal.hidden = !show; if (show) renderOdds(); };
@@ -1234,6 +1431,7 @@ function initOdds() {
 }
 
 initOdds();
+initEvents();
 initStockEditor();
 renderStockFull();
 el("refresh").addEventListener("click", () => load(true));

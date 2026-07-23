@@ -19,8 +19,11 @@ enabled = true
 
 # Serve the static page from ./public. Requests that match a file (e.g. "/")
 # return the asset; everything else (e.g. "/decks") falls through to worker.js.
+# The ASSETS binding lets worker.js serve index.html on archetype-tab paths
+# (e.g. "/grixis-reanimator") that have no file of their own.
 [assets]
 directory = "./public"
+binding = "ASSETS"
 
 # Shared, server-side timeline of auto-swapped stock-list versions. A new
 # version is appended (with the time it was applied) whenever the effective

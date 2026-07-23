@@ -344,12 +344,19 @@ document.querySelectorAll('li.deck').forEach(li => {{
 # --------------------------------------------------------------------------- #
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--url",
-                    default="https://www.mtggoldfish.com/archetype/modern-izzet-prowess")
+    # MTGGoldfish renamed the archetype "Izzet Prowess" -> "Izzet Cutter" and
+    # kept both pages live with disjoint decks, so scan both by default.
+    ap.add_argument("--url", action="append", dest="urls", default=None,
+                    help="archetype page (repeatable)")
     ap.add_argument("--stock", default="stock-prowess.deck")
     ap.add_argument("--out", default="prowess_report.html")
     ap.add_argument("--cache", default=".prowess_cache")
     args = ap.parse_args()
+    if not args.urls:
+        args.urls = [
+            "https://www.mtggoldfish.com/archetype/modern-izzet-prowess",
+            "https://www.mtggoldfish.com/archetype/modern-izzet-cutter",
+        ]
 
     os.makedirs(args.cache, exist_ok=True)
 
@@ -372,8 +379,19 @@ def main():
     print(f"stock: {sum(stock_main.values())} main / {sum(stock_side.values())} SB",
           file=sys.stderr)
 
-    html_text = get(args.url, os.path.join(args.cache, "archetype.html"))
-    tournaments = parse_archetype(html_text)
+    # Merge the pages: a tournament can appear under both archetype names with
+    # different decks, so union the rows per tournament id.
+    merged = {}
+    for i, url in enumerate(args.urls):
+        html_text = get(url, os.path.join(args.cache, f"archetype-{i}.html"))
+        for t in parse_archetype(html_text):
+            prev = merged.get(t["id"])
+            if prev is None:
+                merged[t["id"]] = dict(t, decks=list(t["decks"]))
+                continue
+            seen = {d["id"] for d in prev["decks"]}
+            prev["decks"].extend(d for d in t["decks"] if d["id"] not in seen)
+    tournaments = sorted(merged.values(), key=lambda t: t["date"], reverse=True)
     n_decks = sum(len(t["decks"]) for t in tournaments)
     print(f"parsed {len(tournaments)} tournaments, {n_decks} decks", file=sys.stderr)
 
@@ -395,7 +413,7 @@ def main():
             }
             print(f"  deck {did}: {row['player']}", file=sys.stderr)
 
-    out = render(tournaments, decks, stock_main, stock_side_set, args.url)
+    out = render(tournaments, decks, stock_main, stock_side_set, args.urls[0])
     with open(args.out, "w", encoding="utf-8") as fh:
         fh.write(out)
     print(f"wrote {args.out} ({len(decks)} decks)", file=sys.stderr)

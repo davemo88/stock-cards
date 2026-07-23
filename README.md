@@ -2,10 +2,25 @@
 
 Live: **https://prowess-proxy.david-3f9.workers.dev/**
 
-A Cloudflare Worker that scans the [MTGGoldfish Modern Izzet Prowess archetype
-page](https://www.mtggoldfish.com/archetype/modern-izzet-prowess) for recent
+A Cloudflare Worker that scans MTGGoldfish Modern archetype pages for recent
 decklists and highlights cards that deviate from a **stock list**. The Worker
 both serves the static page and provides the data API — one deploy, one URL.
+
+Two archetype tabs, both served by the same `index.html` (the page picks its
+config from the URL path):
+
+- **Izzet Prowess** at `/` — scrapes
+  [modern-izzet-prowess](https://www.mtggoldfish.com/archetype/modern-izzet-prowess)
+  (merged with its `modern-izzet-cutter` rename).
+- **Grixis Reanimator** at `/grixis-reanimator` — scrapes
+  [modern-grixis-reanimator](https://www.mtggoldfish.com/archetype/modern-grixis-reanimator);
+  its stock list comes from the card breakdown on that archetype homepage.
+
+Per-archetype config (slug, title, stock list, localStorage keys) lives in the
+`ARCHETYPES` map in `worker/public/index.html`; the server-side stock copies
+live in `DEFAULT_STOCKS` in `worker/worker.js` (keep them in sync). Each
+archetype gets its own shared history under its own KV key, and the 6-hour cron
+advances every tracked archetype.
 
 ## How it works
 
@@ -29,6 +44,16 @@ index.html  ◄── diffs each deck vs the stock list in the browser ───
   archetype.
 - **`prowess_scan.py`** — a standalone offline generator that produces a
   self-contained static report (no Worker needed). Useful for a one-off snapshot.
+
+## Find events
+
+The **📍 find events** button in the header looks up nearby paper Modern events
+through the [WotC event locator](https://locator.wizards.com/)'s backing API
+(`api.tabletop.wizards.com`, proxied by the Worker's `/events` route). It first
+asks for browser geolocation; declining falls back to a US ZIP code (geocoded
+via zippopotam.us). Results — soonest first — show date/time, event name, shop
+(linked to its website), address (linked to Google Maps), entry fee, and
+distance in miles.
 
 ## Comparison rules
 
@@ -129,14 +154,16 @@ columns** rather than the vertical hover side-panel.
 
 ## Editing the stock list
 
-The site is dedicated to Modern Izzet Prowess. The **✎ edit stock list** button
+The **✎ edit stock list** button
 opens a textarea to edit the stock list live — one card per line
 (`4 Lightning Bolt`, `2 (2-3) Mountain`, `10 (8-10) Fetchland`), with a
 `Sideboard` line splitting the two sections. **Apply** re-diffs every deck and
 saves the edit to `localStorage` (this browser only); **Reset to default**
 restores the built-in list and clears the saved copy.
 
-The built-in default lives in `DEFAULT_STOCK` in `worker/public/index.html`.
+The built-in defaults live in the `ARCHETYPES` map in
+`worker/public/index.html` (one stock list per tab); edits are saved per
+archetype.
 
 ## Deploying
 

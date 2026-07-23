@@ -13,6 +13,13 @@
 
 const BASE = "https://www.mtggoldfish.com";
 const DEFAULT_ARCHETYPE = "modern-izzet-prowess";
+// MTGGoldfish renamed the archetype "Izzet Prowess" -> "Izzet Cutter" and kept
+// both pages live, each holding a disjoint set of decks. Scrape both and merge
+// so the deck list stays complete across the rename.
+const ARCHETYPE_ALIASES = {
+  "modern-izzet-prowess": ["modern-izzet-prowess", "modern-izzet-cutter"],
+  "modern-izzet-cutter": ["modern-izzet-prowess", "modern-izzet-cutter"],
+};
 const CACHE_TTL = 1800; // 30 min
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) prowess-proxy/1.0";
@@ -24,8 +31,16 @@ const CORS = {
 };
 
 // KV key for the shared stock-list history, and the cap on retained versions.
-const HISTORY_KEY = "stock-history";
+// Izzet Prowess keeps the original bare key so its existing timeline survives;
+// every other archetype gets a namespaced key.
 const HISTORY_MAX = 50;
+const historyKeyFor = (slug) =>
+  slug === DEFAULT_ARCHETYPE ? "stock-history" : `stock-history:${slug}`;
+
+// Page routes: paths (besides "/") served by the same public/index.html — the
+// page reads its archetype config from the URL. KEEP IN SYNC with ARCHETYPES
+// in public/index.html.
+const PAGE_ROUTES = new Set(["/grixis-reanimator"]);
 
 // All fetchlands collapse into one bucket so mana-base fetch swaps don't flag.
 const FETCHLANDS = new Set([
@@ -35,24 +50,50 @@ const FETCHLANDS = new Set([
 ]);
 const FETCH_BUCKET = "Fetchland";
 
-// The base stock list the swap engine measures against. KEEP IN SYNC with
-// DEFAULT_STOCK in public/index.html — this is the server-side copy so the
-// shared history can be computed without a browser. A count is a number (4),
-// a range "2-3", or a nominal + range "10 (8-10)".
-const DEFAULT_STOCK = {
-  main: {
-    "Thundering Falls": 1, "Slickshot Show-Off": 4, "Violent Urge": 2,
-    "Cori-Steel Cutter": 4, "Mishra's Bauble": 4, "Lightning Bolt": 4,
-    "Preordain": 4, "Mutagenic Growth": 4, "Steam Vents": "3 (3-4)", "Monastery Swiftspear": 4,
-    "Lava Dart": 4, "Fiery Islet": 2, "Mountain": "3 (2-3)",
-    "Expressive Iteration": 4, "Dragon's Rage Channeler": 4,
-    "Fetchland": "9 (8-10)",
+// The base stock lists the swap engine measures against, one per tracked
+// archetype. KEEP IN SYNC with the ARCHETYPES stocks in public/index.html —
+// this is the server-side copy so the shared history can be computed without a
+// browser. A count is a number (4), a range "2-3", or a nominal + range
+// "10 (8-10)".
+const DEFAULT_STOCKS = {
+  "modern-izzet-prowess": {
+    main: {
+      "Thundering Falls": 1, "Slickshot Show-Off": 4, "Violent Urge": 2,
+      "Cori-Steel Cutter": 4, "Mishra's Bauble": 4, "Lightning Bolt": 4,
+      "Preordain": 4, "Mutagenic Growth": 4, "Steam Vents": "3 (3-4)", "Monastery Swiftspear": 4,
+      "Lava Dart": 4, "Fiery Islet": 2, "Mountain": "3 (2-3)",
+      "Expressive Iteration": 4, "Dragon's Rage Channeler": 4,
+      "Fetchland": "9 (8-10)",
+    },
+    side: {
+      "Meltdown": 2, "Consign to Memory": "4 (3-4)", "Unholy Heat": "3 (2-3)",
+      "Spell Pierce": 2, "Murktide Regent": 1, "Tormod's Crypt": "2 (1-3)", "Prismari Charm": 1,
+    },
   },
-  side: {
-    "Meltdown": 2, "Consign to Memory": "4 (3-4)", "Unholy Heat": "3 (2-3)",
-    "Spell Pierce": 2, "Murktide Regent": 1, "Tormod's Crypt": "2 (1-3)", "Prismari Charm": 1,
+  "modern-grixis-reanimator": {
+    main: {
+      "Abhorrent Oculus": 4, "Archon of Cruelty": 4, "Emperor of Bones": 3,
+      "Psychic Frog": 4,
+      "Faithless Looting": 4, "Fatal Push": 4, "Inquisition of Kozilek": 2,
+      "Persist": 4, "Thought Scour": 4, "Thoughtseize": 4, "Unearth": 4,
+      "Blood Crypt": 1, "Darkslick Shores": 1, "Island": 1, "Raucous Theater": 1,
+      "Steam Vents": 1, "Swamp": 2, "Undercity Sewers": 1, "Watery Grave": 2,
+      "Fetchland": "9 (8-10)",
+    },
+    side: {
+      "Consign to Memory": 3, "Damping Sphere": 2, "Meltdown": 2,
+      "Mystical Dispute": 2, "Pyroclasm": 2, "Surgical Extraction": 2,
+      "Vexing Bauble": 2,
+    },
   },
 };
+
+// The tracked archetype (if any) a requested slug resolves to, via the alias
+// table — e.g. modern-izzet-cutter -> modern-izzet-prowess.
+function canonicalSlug(slug) {
+  const aliases = ARCHETYPE_ALIASES[slug] || [slug];
+  return Object.keys(DEFAULT_STOCKS).find((c) => aliases.includes(c)) || null;
+}
 
 export default {
   async fetch(request, env, ctx) {
@@ -64,6 +105,31 @@ export default {
     if (url.pathname === "/health") {
       return new Response("ok", { headers: CORS });
     }
+    // Nearby Modern events via the WotC event locator's backing API. Takes
+    // ?lat=..&lng=.. (from browser geolocation) or ?zip=.. (US ZIP, geocoded
+    // via zippopotam.us), plus ?dist=<miles>.
+    if (url.pathname === "/events") {
+      const miles = Math.min(250, Math.max(1, parseFloat(url.searchParams.get("dist")) || 10));
+      let lat = parseFloat(url.searchParams.get("lat"));
+      let lng = parseFloat(url.searchParams.get("lng"));
+      const zip = (url.searchParams.get("zip") || "").trim();
+      try {
+        if (!isFinite(lat) || !isFinite(lng)) {
+          if (!zip) return json({ error: "need lat/lng or zip" }, 400);
+          ({ lat, lng } = await geocodeZip(zip));
+        }
+        const found = await searchEvents(lat, lng, Math.round(miles * 1609.344));
+        return json({ generated: new Date().toISOString(), miles, ...found });
+      } catch (err) {
+        return json({ error: "event search failed", detail: String(err) }, 502);
+      }
+    }
+    // Archetype tabs: paths with no matching static asset fall through to the
+    // Worker; serve them the shared index.html (it configures itself from the
+    // URL). env.ASSETS is the assets binding declared in wrangler.toml.
+    if (PAGE_ROUTES.has(url.pathname.replace(/\/+$/, ""))) {
+      return env.ASSETS.fetch(new Request(new URL("/", url.origin), request));
+    }
     if (url.pathname !== "/decks") {
       return json({ error: "not found" }, 404);
     }
@@ -73,7 +139,7 @@ export default {
 
     // Edge cache keyed by archetype (ignore ?refresh in the key). Bump the
     // version when the payload shape changes so stale caches are skipped.
-    const cacheKey = new Request(`${url.origin}/decks?archetype=${slug}&v=5`, request);
+    const cacheKey = new Request(`${url.origin}/decks?archetype=${slug}&v=6`, request);
     const cache = caches.default;
     if (!refresh) {
       const hit = await cache.match(cacheKey);
@@ -87,14 +153,15 @@ export default {
       return json({ error: "scrape failed", detail: String(err) }, 502);
     }
 
-    // Fold this scrape into the shared stock-list history (Izzet Prowess only —
-    // DEFAULT_STOCK is archetype-specific) and return it so a fresh visitor sees
-    // the whole timeline, not just their own localStorage.
-    if (slug === DEFAULT_ARCHETYPE) {
+    // Fold this scrape into the shared stock-list history (tracked archetypes
+    // only — the stock lists are archetype-specific) and return it so a fresh
+    // visitor sees the whole timeline, not just their own localStorage.
+    const canon = canonicalSlug(slug);
+    if (canon) {
       try {
-        payload.history = await recordHistoryKV(env, payload.decks);
+        payload.history = await recordHistoryKV(env, payload.decks, canon);
       } catch (_) {
-        payload.history = await loadHistoryKV(env).catch(() => []);
+        payload.history = await loadHistoryKV(env, canon).catch(() => []);
       }
     }
 
@@ -115,20 +182,19 @@ export default {
   // schedule so it keeps up with the meta even when nobody visits the site.
   async scheduled(event, env, ctx) {
     ctx.waitUntil(
-      (async () => {
+      Promise.all(Object.keys(DEFAULT_STOCKS).map(async (slug) => {
         try {
-          const payload = await scrape(DEFAULT_ARCHETYPE);
-          await recordHistoryKV(env, payload.decks);
+          const payload = await scrape(slug);
+          await recordHistoryKV(env, payload.decks, slug);
         } catch (_) { /* best effort; next tick retries */ }
-      })(),
+      })),
     );
   },
 };
 
 // --------------------------------------------------------------------------- //
 async function scrape(slug) {
-  const html = await fetchText(`${BASE}/archetype/${slug}`);
-  const tournaments = parseArchetype(html);
+  const tournaments = await scrapeArchetypePages(slug);
 
   // Fetch every unique deck's plaintext list in parallel.
   const ids = [...new Set(tournaments.flatMap((t) => t.decks.map((d) => d.id)))];
@@ -167,6 +233,32 @@ async function scrape(slug) {
     generated: new Date().toISOString(), archetype: slug,
     count: decks.length, decks, mana, types, cmc,
   };
+}
+
+// Fetch every page this archetype is known by and merge their tournaments.
+// Same tournament can appear under both names with different decks, so union
+// the rows per tournament id and keep the newest tournaments first.
+async function scrapeArchetypePages(slug) {
+  const slugs = ARCHETYPE_ALIASES[slug] || [slug];
+  const pages = await Promise.all(
+    slugs.map((s) =>
+      fetchText(`${BASE}/archetype/${s}`).then(parseArchetype).catch(() => null),
+    ),
+  );
+  if (pages.every((p) => p === null)) {
+    throw new Error(`no archetype page fetched for ${slug}`);
+  }
+
+  const byTourney = new Map();
+  for (const tournaments of pages) {
+    for (const t of tournaments || []) {
+      const prev = byTourney.get(t.id);
+      if (!prev) { byTourney.set(t.id, { ...t, decks: [...t.decks] }); continue; }
+      const seen = new Set(prev.decks.map((d) => d.id));
+      for (const d of t.decks) if (!seen.has(d.id)) prev.decks.push(d);
+    }
+  }
+  return [...byTourney.values()].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 }
 
 // name -> { mana_cost, primary type, cmc } via Scryfall's bulk collection API.
@@ -220,6 +312,71 @@ async function fetchText(target) {
   });
   if (!r.ok) throw new Error(`${target} -> HTTP ${r.status}`);
   return r.text();
+}
+
+// --------------------------------------------------------------------------- //
+// WotC event locator (the API behind locator.wizards.com). Public GraphQL, no
+// auth needed; tags filter events, {tag:"modern"} = Modern-format events.
+const WOTC_GQL = "https://api.tabletop.wizards.com/silverbeak-griffin-service/graphql";
+
+// US ZIP -> lat/lng via the free zippopotam.us geocoder.
+async function geocodeZip(zip) {
+  const r = await fetch(`https://api.zippopotam.us/us/${encodeURIComponent(zip)}`, {
+    headers: { "User-Agent": UA, Accept: "application/json" },
+  });
+  const place = r.ok ? ((await r.json()).places || [])[0] : null;
+  if (!place) throw new Error(`ZIP "${zip}" not found (US ZIP codes only)`);
+  return { lat: parseFloat(place.latitude), lng: parseFloat(place.longitude) };
+}
+
+async function searchEvents(lat, lng, maxMeters) {
+  const query = `query advancedSearchEvents($lat: Float!, $lng: Float!, $maxMeters: Int!, $tags: [AdvancedTag!], $startDate: DateTime, $page: Int, $pageSize: Int) {
+    advancedSearchEvents(query: {lat: $lat, lng: $lng, maxMeters: $maxMeters, tags: $tags, startDate: $startDate, page: $page, pageSize: $pageSize}) {
+      events { id title scheduledStartTime distance isOnline phoneNumber
+        entryFee { amount currency }
+        organization { name website phoneNumber address city state postalCode }
+        eventFormat { name } }
+      pageInfo { totalResults } } }`;
+  const r = await fetch(WOTC_GQL, {
+    method: "POST",
+    headers: { "User-Agent": UA, "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      query,
+      variables: {
+        lat, lng, maxMeters,
+        tags: [{ tag: "modern", modifier: "AND" }],
+        // date-only: their .NET backend rejects a full ISO timestamp
+        startDate: new Date().toISOString().slice(0, 10),
+        page: 0, pageSize: 50,
+      },
+    }),
+  });
+  if (!r.ok) throw new Error(`locator API HTTP ${r.status}`);
+  const j = await r.json();
+  if (j.errors && j.errors.length) throw new Error(j.errors[0].message);
+  const d = (j.data && j.data.advancedSearchEvents) || { events: [], pageInfo: {} };
+  const events = (d.events || [])
+    .filter((e) => !e.isOnline)
+    .map((e) => {
+      const org = e.organization || {};
+      return {
+        id: e.id,
+        title: e.title,
+        time: e.scheduledStartTime,
+        milesAway: +(e.distance / 1609.344).toFixed(1),
+        fee: e.entryFee || null,
+        format: (e.eventFormat && e.eventFormat.name) || "",
+        store: org.name || "",
+        website: org.website || "",
+        phone: e.phoneNumber || org.phoneNumber || "",
+        address: org.address || "",
+        city: org.city || "",
+        state: org.state || "",
+        zip: org.postalCode || "",
+      };
+    })
+    .sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+  return { count: events.length, total: (d.pageInfo && d.pageInfo.totalResults) || events.length, events };
 }
 
 // --------------------------------------------------------------------------- //
@@ -435,19 +592,20 @@ function applySwapsToStock(stock, swaps) {
 const stockKey = (s) =>
   JSON.stringify([Object.entries(s.main).sort(), Object.entries(s.side).sort()]);
 
-function computeEffective(decks) {
-  const swaps = detectSwaps(decks, DEFAULT_STOCK);
-  const effective = swaps.length ? applySwapsToStock(DEFAULT_STOCK, swaps)
-    : { main: { ...DEFAULT_STOCK.main }, side: { ...DEFAULT_STOCK.side } };
+function computeEffective(decks, slug) {
+  const base = DEFAULT_STOCKS[slug];
+  const swaps = detectSwaps(decks, base);
+  const effective = swaps.length ? applySwapsToStock(base, swaps)
+    : { main: { ...base.main }, side: { ...base.side } };
   return { effective, swaps };
 }
 
 // Read the shared history from KV, collapsing any accidental duplicate versions
 // (a rare consequence of two concurrent writers appending the same change).
-async function loadHistoryKV(env) {
+async function loadHistoryKV(env, slug) {
   if (!env || !env.STOCK_HISTORY) return [];
   try {
-    const raw = await env.STOCK_HISTORY.get(HISTORY_KEY);
+    const raw = await env.STOCK_HISTORY.get(historyKeyFor(slug));
     if (!raw) return [];
     const h = JSON.parse(raw);
     if (!Array.isArray(h)) return [];
@@ -465,15 +623,15 @@ async function loadHistoryKV(env) {
 }
 // Append the current effective stock to the shared history iff it changed.
 // Returns the (possibly updated) history array.
-async function recordHistoryKV(env, decks) {
-  const hist = await loadHistoryKV(env);
+async function recordHistoryKV(env, decks, slug) {
+  const hist = await loadHistoryKV(env, slug);
   if (!env || !env.STOCK_HISTORY) return hist;
-  const { effective, swaps } = computeEffective(decks);
+  const { effective, swaps } = computeEffective(decks, slug);
   const last = hist[hist.length - 1];
   if (last && stockKey(last.stock) === stockKey(effective)) return hist;
   hist.push({ time: new Date().toISOString(), stock: effective, swaps });
   const trimmed = hist.length > HISTORY_MAX ? hist.slice(-HISTORY_MAX) : hist;
-  await env.STOCK_HISTORY.put(HISTORY_KEY, JSON.stringify(trimmed));
+  await env.STOCK_HISTORY.put(historyKeyFor(slug), JSON.stringify(trimmed));
   return trimmed;
 }
 
